@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { InventoryRecord, Item, RecordInput } from "@/lib/types";
 import { CATEGORIES, EXPIRY_KINDS, expiryKindFor } from "@/lib/types";
-import { api } from "./client";
+import { api, jstStamp } from "./client";
 
 export type FormMode =
   | { kind: "new"; item: Item } // マスタから選択して新規登録
@@ -54,6 +54,12 @@ export default function RecordForm({
   const [expiryKind, setExpiryKind] = useState(record?.expiryKind ?? "");
   const [note, setNote] = useState(record?.note ?? "");
   const [member, setMember] = useState(record?.member ?? defaultMember);
+  // チェック状態: 新規は「1回目完了」（登録＝1回目カウント済み）を既定にする
+  const [checkStatus, setCheckStatus] = useState(
+    record ? record.checkStatus : "1回目完了",
+  );
+  const [checker, setChecker] = useState(record?.checker ?? "");
+  const [checkedAt, setCheckedAt] = useState(record?.checkedAt ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -66,6 +72,18 @@ export default function RecordForm({
   function onExpiryDateChange(value: string) {
     setExpiryDate(value);
     setExpiryKind(expiryKindFor(value));
+  }
+
+  /** チェック状態を切り替える。ダブルチェック完了時は実施者と日時を記録する */
+  function setStatus(next: string) {
+    setCheckStatus(next);
+    if (next === "ダブルチェック完了") {
+      setChecker(defaultMember || member);
+      setCheckedAt(jstStamp());
+    } else {
+      setChecker("");
+      setCheckedAt("");
+    }
   }
 
   function step(delta: number) {
@@ -99,6 +117,9 @@ export default function RecordForm({
       expiryDate,
       expiryKind,
       member,
+      checkStatus,
+      checker,
+      checkedAt,
       note: note.trim(),
     };
     setBusy(true);
@@ -385,6 +406,41 @@ export default function RecordForm({
               className={field}
               placeholder="メモ"
             />
+          </div>
+
+          {/* チェック状態: 未確認 → 1回目完了 → ダブルチェック完了 */}
+          <div className="rounded-xl bg-gray-50 p-3">
+            <label className={label}>棚卸しチェック</label>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {[
+                { value: "", text: "未確認", on: "bg-gray-500" },
+                { value: "1回目完了", text: "1回目完了", on: "bg-blue-600" },
+                {
+                  value: "ダブルチェック完了",
+                  text: "ダブル完了",
+                  on: "bg-emerald-600",
+                },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setStatus(s.value)}
+                  className={`rounded-lg py-2.5 text-sm font-bold ${
+                    checkStatus === s.value
+                      ? `${s.on} text-white`
+                      : "bg-white text-gray-500 shadow-sm"
+                  }`}
+                >
+                  {s.text}
+                </button>
+              ))}
+            </div>
+            {checkStatus === "ダブルチェック完了" && checker && (
+              <p className="mt-2 text-xs text-emerald-700">
+                ✓✓ {checker}
+                {checkedAt ? `（${checkedAt}）` : ""} が確認済み
+              </p>
+            )}
           </div>
 
           {error && (
