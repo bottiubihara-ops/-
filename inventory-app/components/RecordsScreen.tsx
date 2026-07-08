@@ -135,6 +135,9 @@ export default function RecordsScreen() {
                     <p className="mt-1 text-xs text-gray-400">
                       {r.recordedAt}　{r.member}
                       {r.partialQty ? `　(内 半端${r.partialQty}${r.unit})` : ""}
+                      {r.expiredQty
+                        ? `　⚠期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}`
+                        : ""}
                       {r.location ? `　📍${r.location}` : ""}
                       {r.expiryKind ? `　⚠${r.expiryKind}` : ""}
                       {r.expiryDate ? `(${r.expiryDate})` : ""}

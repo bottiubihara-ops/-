@@ -37,15 +37,17 @@ export default function RecordForm({
   const [category, setCategory] = useState(
     record?.category ?? item?.category ?? "その他",
   );
-  // 編集時は保存済みの合計から半端量を差し引いた「まとまり量」を表示する
+  // 数量は半端を含んだ合計をそのまま入力・表示する（期限切れ分は含めない）
   const [quantity, setQuantity] = useState(
-    record
-      ? String(Math.round((record.quantity - record.partialQty) * 1000) / 1000)
-      : "",
+    record ? String(record.quantity) : "",
   );
   const [partialQty, setPartialQty] = useState(
     record && record.partialQty ? String(record.partialQty) : "",
   );
+  const [expiredQty, setExpiredQty] = useState(
+    record && record.expiredQty ? String(record.expiredQty) : "",
+  );
+  const [expiredDate, setExpiredDate] = useState(record?.expiredDate ?? "");
   const [unit, setUnit] = useState(record?.unit ?? item?.units[0] ?? "個");
   const [location, setLocation] = useState(record?.location ?? "");
   const [expiryDate, setExpiryDate] = useState(record?.expiryDate ?? "");
@@ -56,12 +58,10 @@ export default function RecordForm({
   const [busy, setBusy] = useState(false);
 
   const unitOptions = item && item.units.length > 1 ? item.units : null;
-  // 半端量欄は副原料のみ表示（開封済み袋の端数kgなどを分けて記入する用途）
+  // 半端量欄は副原料のみ表示（数量のうち端数分が何kgかのメモ）
   const showPartial = category === "副原料";
-  const partialNum = parseFloat(partialQty) || 0;
-  const totalQty =
-    Math.round(((parseFloat(quantity) || 0) + (showPartial ? partialNum : 0)) * 1000) /
-    1000;
+  // 期限切れ別枠は原料豆・副原料で表示（数量には含めない・紙棚卸表と同じ運用）
+  const showExpired = category === "原料豆" || category === "副原料";
 
   function onExpiryDateChange(value: string) {
     setExpiryDate(value);
@@ -81,14 +81,20 @@ export default function RecordForm({
     if (!Number.isFinite(q) || q < 0)
       return setError("数量には0以上の数値を入力してください");
     const partial = showPartial ? parseFloat(partialQty) || 0 : 0;
-    if (partial < 0) return setError("半端量には0以上の数値を入力してください");
+    if (partial < 0 || partial > q)
+      return setError("半端量は0以上・数量（合計）以下で入力してください");
+    const expired = showExpired ? parseFloat(expiredQty) || 0 : 0;
+    if (expired < 0)
+      return setError("期限切れ量には0以上の数値を入力してください");
     const input: RecordInput = {
       code: record?.code ?? item?.code ?? "",
       name: name.trim(),
       category,
-      quantity: Math.round((q + partial) * 1000) / 1000,
+      quantity: q,
       unit,
       partialQty: partial,
+      expiredQty: expired,
+      expiredDate: showExpired ? expiredDate : "",
       location: location.trim(),
       expiryDate,
       expiryKind,
@@ -264,11 +270,11 @@ export default function RecordForm({
             </div>
           </div>
 
-          {/* 半端量（副原料のみ）: 開封済み袋の端数などを分けて記入 → 数量と合算して記録 */}
+          {/* 半端量（副原料のみ）: 数量（合計）のうち端数分が何kgかをメモする */}
           {showPartial && (
             <div className="rounded-xl bg-gray-50 p-3">
               <label className={label}>
-                半端量（任意・開封済みの端数など）
+                半端量（任意・上の数量のうち端数分）
               </label>
               <div className="mt-1 flex items-center gap-2">
                 <input
@@ -281,10 +287,38 @@ export default function RecordForm({
                 <span className="text-sm font-semibold text-gray-500">
                   {unit}
                 </span>
-                <span className="ml-auto text-sm font-bold text-blue-700">
-                  合計 {totalQty}
+                <span className="ml-auto text-xs text-gray-400">
+                  数量{quantity || 0}
+                  {unit}のうち半端が何{unit}か
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 期限切れ別枠（原料豆・副原料）: 数量には含めず、量と期限日を別に記録する */}
+          {showExpired && (
+            <div className="rounded-xl bg-amber-50 p-3">
+              <label className={label}>
+                期限切れ分（任意・上の数量には含めない）
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  value={expiredQty}
+                  onChange={(e) => setExpiredQty(e.target.value)}
+                  inputMode="decimal"
+                  className="h-11 w-28 rounded-xl border border-gray-300 bg-white text-center text-lg font-bold focus:border-blue-500 focus:outline-none"
+                  placeholder="0"
+                />
+                <span className="text-sm font-semibold text-gray-500">
                   {unit}
                 </span>
+                <input
+                  type="date"
+                  value={expiredDate}
+                  onChange={(e) => setExpiredDate(e.target.value)}
+                  aria-label="期限切れ日"
+                  className="h-11 flex-1 rounded-xl border border-gray-300 bg-white px-3 focus:border-blue-500 focus:outline-none"
+                />
               </div>
             </div>
           )}

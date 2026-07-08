@@ -37,6 +37,12 @@ export function parseRecordInput(body: unknown): RecordInput | string {
   if (partialQty < 0 || partialQty > quantity) {
     return "半端量には0以上・数量（合計）以下の数値を入力してください";
   }
+  const rawExpired =
+    typeof b.expiredQty === "number" ? b.expiredQty : parseFloat(text(b.expiredQty));
+  const expiredQty = Number.isFinite(rawExpired) ? rawExpired : 0;
+  if (expiredQty < 0) {
+    return "期限切れ量には0以上の数値を入力してください";
+  }
   return {
     code: text(b.code),
     name,
@@ -44,6 +50,8 @@ export function parseRecordInput(body: unknown): RecordInput | string {
     quantity,
     unit: text(b.unit),
     partialQty,
+    expiredQty,
+    expiredDate: text(b.expiredDate),
     location: text(b.location),
     expiryDate: text(b.expiryDate),
     expiryKind: text(b.expiryKind),

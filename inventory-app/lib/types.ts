@@ -25,11 +25,15 @@ export interface InventoryRecord {
   code: string;
   name: string;
   category: string;
-  /** 数量（半端量を含む合計） */
+  /** 数量（半端量を含んだ合計をそのまま入力する。期限切れ分は含めない） */
   quantity: number;
   unit: string;
-  /** 半端量（任意・主に副原料のkg端数。quantityに含まれる内訳） */
+  /** 半端量（任意・数量のうち端数分が何kgかのメモ。副原料のみ） */
   partialQty: number;
+  /** 期限切れ量（任意・数量とは別枠。原料豆/副原料のみ） */
+  expiredQty: number;
+  /** 期限切れ日（任意・期限切れ分の期限日 "YYYY-MM-DD"） */
+  expiredDate: string;
   /** 保管場所（任意） */
   location: string;
   /** 期限日 "YYYY-MM-DD"（任意） */
