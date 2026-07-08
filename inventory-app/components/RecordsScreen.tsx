@@ -134,6 +134,7 @@ export default function RecordsScreen() {
                     </div>
                     <p className="mt-1 text-xs text-gray-400">
                       {r.recordedAt}　{r.member}
+                      {r.partialQty ? `　(内 半端${r.partialQty}${r.unit})` : ""}
                       {r.location ? `　📍${r.location}` : ""}
                       {r.expiryKind ? `　⚠${r.expiryKind}` : ""}
                       {r.expiryDate ? `(${r.expiryDate})` : ""}

@@ -25,8 +25,11 @@ export interface InventoryRecord {
   code: string;
   name: string;
   category: string;
+  /** 数量（半端量を含む合計） */
   quantity: number;
   unit: string;
+  /** 半端量（任意・主に副原料のkg端数。quantityに含まれる内訳） */
+  partialQty: number;
   /** 保管場所（任意） */
   location: string;
   /** 期限日 "YYYY-MM-DD"（任意） */
@@ -42,5 +45,21 @@ export interface InventoryRecord {
 export type RecordInput = Omit<InventoryRecord, "id" | "recordedAt" | "month">;
 
 export const EXPIRY_KINDS = ["来月期限", "再来月期限", "期限切れ"] as const;
+
+/**
+ * 期限日から期限区分を自動判定する（月末実地棚卸し基準・手動変更可）。
+ * 今月中に期限が来る（または既に過ぎた）→ 期限切れ / 来月中 → 来月期限 /
+ * 再来月中 → 再来月期限 / それより先 → 空欄
+ */
+export function expiryKindFor(dateStr: string, now: Date = new Date()): string {
+  const m = /^(\d{4})-(\d{2})/.exec(dateStr);
+  if (!m) return "";
+  const diff =
+    Number(m[1]) * 12 + (Number(m[2]) - 1) - (now.getFullYear() * 12 + now.getMonth());
+  if (diff <= 0) return "期限切れ";
+  if (diff === 1) return "来月期限";
+  if (diff === 2) return "再来月期限";
+  return "";
+}
 
 export const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"] as const;

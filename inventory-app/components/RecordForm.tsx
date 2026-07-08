@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { InventoryRecord, Item, RecordInput } from "@/lib/types";
-import { CATEGORIES, EXPIRY_KINDS } from "@/lib/types";
+import { CATEGORIES, EXPIRY_KINDS, expiryKindFor } from "@/lib/types";
 import { api } from "./client";
 
 export type FormMode =
@@ -37,8 +37,14 @@ export default function RecordForm({
   const [category, setCategory] = useState(
     record?.category ?? item?.category ?? "その他",
   );
+  // 編集時は保存済みの合計から半端量を差し引いた「まとまり量」を表示する
   const [quantity, setQuantity] = useState(
-    record ? String(record.quantity) : "",
+    record
+      ? String(Math.round((record.quantity - record.partialQty) * 1000) / 1000)
+      : "",
+  );
+  const [partialQty, setPartialQty] = useState(
+    record && record.partialQty ? String(record.partialQty) : "",
   );
   const [unit, setUnit] = useState(record?.unit ?? item?.units[0] ?? "個");
   const [location, setLocation] = useState(record?.location ?? "");
@@ -50,6 +56,17 @@ export default function RecordForm({
   const [busy, setBusy] = useState(false);
 
   const unitOptions = item && item.units.length > 1 ? item.units : null;
+  // 半端量欄は副原料のみ表示（開封済み袋の端数kgなどを分けて記入する用途）
+  const showPartial = category === "副原料";
+  const partialNum = parseFloat(partialQty) || 0;
+  const totalQty =
+    Math.round(((parseFloat(quantity) || 0) + (showPartial ? partialNum : 0)) * 1000) /
+    1000;
+
+  function onExpiryDateChange(value: string) {
+    setExpiryDate(value);
+    setExpiryKind(expiryKindFor(value));
+  }
 
   function step(delta: number) {
     const cur = parseFloat(quantity);
@@ -63,12 +80,15 @@ export default function RecordForm({
     if (!member) return setError("入力者を選択してください");
     if (!Number.isFinite(q) || q < 0)
       return setError("数量には0以上の数値を入力してください");
+    const partial = showPartial ? parseFloat(partialQty) || 0 : 0;
+    if (partial < 0) return setError("半端量には0以上の数値を入力してください");
     const input: RecordInput = {
       code: record?.code ?? item?.code ?? "",
       name: name.trim(),
       category,
-      quantity: q,
+      quantity: Math.round((q + partial) * 1000) / 1000,
       unit,
+      partialQty: partial,
       location: location.trim(),
       expiryDate,
       expiryKind,
@@ -244,6 +264,31 @@ export default function RecordForm({
             </div>
           </div>
 
+          {/* 半端量（副原料のみ）: 開封済み袋の端数などを分けて記入 → 数量と合算して記録 */}
+          {showPartial && (
+            <div className="rounded-xl bg-gray-50 p-3">
+              <label className={label}>
+                半端量（任意・開封済みの端数など）
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  value={partialQty}
+                  onChange={(e) => setPartialQty(e.target.value)}
+                  inputMode="decimal"
+                  className="h-11 w-32 rounded-xl border border-gray-300 bg-white text-center text-lg font-bold focus:border-blue-500 focus:outline-none"
+                  placeholder="0"
+                />
+                <span className="text-sm font-semibold text-gray-500">
+                  {unit}
+                </span>
+                <span className="ml-auto text-sm font-bold text-blue-700">
+                  合計 {totalQty}
+                  {unit}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* 保管場所・期限 */}
           <div className="flex gap-3">
             <div className="flex-1">
@@ -256,7 +301,7 @@ export default function RecordForm({
               />
             </div>
             <div className="w-36">
-              <label className={label}>期限区分（任意）</label>
+              <label className={label}>期限区分（自動・変更可）</label>
               <select
                 value={expiryKind}
                 onChange={(e) => setExpiryKind(e.target.value)}
@@ -277,7 +322,7 @@ export default function RecordForm({
               <input
                 type="date"
                 value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
+                onChange={(e) => onExpiryDateChange(e.target.value)}
                 className={field}
               />
             </div>

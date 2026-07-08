@@ -31,12 +31,19 @@ export function parseRecordInput(body: unknown): RecordInput | string {
   if (!Number.isFinite(quantity) || quantity < 0) {
     return "数量には0以上の数値を入力してください";
   }
+  const rawPartial =
+    typeof b.partialQty === "number" ? b.partialQty : parseFloat(text(b.partialQty));
+  const partialQty = Number.isFinite(rawPartial) ? rawPartial : 0;
+  if (partialQty < 0 || partialQty > quantity) {
+    return "半端量には0以上・数量（合計）以下の数値を入力してください";
+  }
   return {
     code: text(b.code),
     name,
     category: text(b.category),
     quantity,
     unit: text(b.unit),
+    partialQty,
     location: text(b.location),
     expiryDate: text(b.expiryDate),
     expiryKind: text(b.expiryKind),
