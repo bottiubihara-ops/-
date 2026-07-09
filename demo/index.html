@@ -1,0 +1,800 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>棚卸しアプリ（デモ）</title>
+<style>
+  :root {
+    --bg: #f2f4f7;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #78818f;
+    --faint: #a5adba;
+    --line: #d9dee6;
+    --accent: #2563eb;
+    --accent-soft: #eaf1fe;
+    --accent-ink: #ffffff;
+    --chip: #e7eaf0;
+    --ok: #059669;
+    --danger: #dc2626;
+    --danger-soft: #fdecec;
+    --overlay: rgba(15, 20, 30, 0.45);
+    --shadow: 0 1px 3px rgba(20, 28, 45, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c;
+      --card: #1d222c;
+      --text: #e8ebf1;
+      --muted: #98a1b0;
+      --faint: #6b7382;
+      --line: #333b48;
+      --accent: #5b8bf5;
+      --accent-soft: #223252;
+      --accent-ink: #ffffff;
+      --chip: #2a303c;
+      --ok: #34d399;
+      --danger: #f87171;
+      --danger-soft: #3a2426;
+      --overlay: rgba(0, 0, 0, 0.6);
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f4f7; --card: #ffffff; --text: #1f2430; --muted: #78818f;
+    --faint: #a5adba; --line: #d9dee6; --accent: #2563eb; --accent-soft: #eaf1fe;
+    --accent-ink: #ffffff; --chip: #e7eaf0; --ok: #059669; --danger: #dc2626;
+    --danger-soft: #fdecec; --overlay: rgba(15, 20, 30, 0.45);
+    --shadow: 0 1px 3px rgba(20, 28, 45, 0.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151c; --card: #1d222c; --text: #e8ebf1; --muted: #98a1b0;
+    --faint: #6b7382; --line: #333b48; --accent: #5b8bf5; --accent-soft: #223252;
+    --accent-ink: #ffffff; --chip: #2a303c; --ok: #34d399; --danger: #f87171;
+    --danger-soft: #3a2426; --overlay: rgba(0, 0, 0, 0.6);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI",
+      "Noto Sans JP", Meiryo, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  input, select { font-family: inherit; font-size: 16px; color: var(--text); }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wrap { max-width: 600px; margin: 0 auto; padding: 0 16px 120px; }
+
+  /* ---- header ---- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .head-inner {
+    max-width: 600px; margin: 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px 0;
+  }
+  .head-inner h1 { font-size: 17px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .demo-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--accent); background: var(--accent-soft);
+    padding: 3px 8px; border-radius: 999px;
+  }
+  .tabs { margin-left: auto; display: flex; }
+  .tab {
+    background: none; padding: 10px 20px 12px; font-size: 14px; font-weight: 600;
+    color: var(--muted); border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .notice {
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 11.5px; text-align: center; padding: 6px 12px;
+  }
+
+  /* ---- cards / chips ---- */
+  .card { background: var(--card); border-radius: 14px; box-shadow: var(--shadow); }
+  .label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.03em; }
+  .chip {
+    border-radius: 999px; padding: 9px 16px; font-size: 13.5px; font-weight: 600;
+    background: var(--chip); color: var(--muted);
+  }
+  .chip.on { background: var(--accent); color: var(--accent-ink); }
+  .cat-chip.on { background: var(--text); color: var(--bg); }
+
+  .member-card { margin-top: 16px; padding: 12px 14px; }
+  .member-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+
+  .search {
+    width: 100%; margin-top: 16px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 13px 16px;
+  }
+  .search:focus { border-color: var(--accent); outline: none; }
+  .cat-row { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 4px; }
+  .cat-row .chip { flex-shrink: 0; }
+
+  .items { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .item-btn {
+    width: 100%; text-align: left; background: var(--card);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 12px 14px; color: var(--text);
+  }
+  .item-btn:active { background: var(--accent-soft); }
+  .item-name { font-weight: 600; font-size: 14.5px; }
+  .item-sub { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+  .empty { text-align: center; color: var(--faint); font-size: 13px; padding: 20px 0; }
+  .manual-btn {
+    width: 100%; margin-top: 12px; padding: 13px;
+    background: none; border: 2px dashed var(--line); border-radius: 14px;
+    color: var(--muted); font-weight: 600; font-size: 14px;
+  }
+
+  /* ---- records ---- */
+  .rec-head { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+  .rec-count { font-size: 13px; color: var(--muted); }
+  .rec-count b { color: var(--text); font-size: 15px; }
+  .csv-btn {
+    margin-left: auto; background: var(--ok); color: #fff;
+    border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600;
+  }
+  .month-h { font-size: 13px; font-weight: 700; color: var(--muted); margin: 20px 4px 8px; }
+  .rec-btn {
+    width: 100%; text-align: left; background: var(--card);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 12px 14px; color: var(--text);
+  }
+  .rec-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .rec-name { font-weight: 600; font-size: 14.5px; }
+  .rec-qty { font-size: 18px; font-weight: 700; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rec-qty small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .rec-sub { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
+
+  /* ---- sheet (form) ---- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 30;
+    background: var(--overlay);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .sheet {
+    width: 100%; max-width: 600px; max-height: 92dvh; overflow-y: auto;
+    background: var(--card); border-radius: 18px 18px 0 0;
+    padding: 20px 20px 32px;
+    animation: rise 0.18s ease-out;
+  }
+  @keyframes rise { from { transform: translateY(40px); opacity: 0.5; } }
+  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } .toast { animation: none; } }
+  .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .sheet-head h2 { margin: 0; font-size: 17px; }
+  .x-btn { background: none; font-size: 24px; color: var(--faint); line-height: 1; padding: 2px 8px; }
+  .f-row { display: flex; gap: 12px; margin-top: 14px; }
+  .f-col { flex: 1; min-width: 0; }
+  .f-col.narrow { flex: 0 0 130px; }
+  .field {
+    width: 100%; margin-top: 5px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px;
+  }
+  .field:focus { border-color: var(--accent); outline: none; }
+  .item-summary { background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
+  .item-summary p { margin: 0; font-weight: 700; font-size: 14.5px; }
+  .item-summary .item-sub { color: var(--muted); }
+  .qty-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+  .step-btn {
+    height: 48px; width: 54px; flex-shrink: 0; border-radius: 12px;
+    background: var(--chip); color: var(--muted); font-size: 22px; font-weight: 700;
+  }
+  .qty-input {
+    height: 48px; flex: 1; min-width: 0; text-align: center;
+    font-size: 22px; font-weight: 700;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    font-variant-numeric: tabular-nums;
+  }
+  .qty-input:focus { border-color: var(--accent); outline: none; }
+  .unit-fixed { width: 44px; text-align: center; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+  .unit-col { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+  .unit-chip { border-radius: 9px; padding: 5px 12px; font-size: 13px; font-weight: 600; background: var(--chip); color: var(--muted); }
+  .unit-chip.on { background: var(--accent); color: var(--accent-ink); }
+  .unit-input { height: 48px; width: 74px; text-align: center; border: 1px solid var(--line); border-radius: 12px; background: var(--card); flex-shrink: 0; }
+  .partial-box { background: var(--bg); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
+  .partial-input {
+    height: 44px; width: 130px; text-align: center; font-size: 18px; font-weight: 700;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    font-variant-numeric: tabular-nums;
+  }
+  .partial-input:focus { border-color: var(--accent); outline: none; }
+  .total-label { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--accent); }
+  .err { color: var(--danger); font-size: 13px; font-weight: 600; margin: 12px 0 0; }
+  .submit-btn {
+    width: 100%; margin-top: 16px; padding: 14px;
+    background: var(--accent); color: var(--accent-ink);
+    border-radius: 12px; font-size: 16px; font-weight: 700;
+  }
+  .del-btn {
+    width: 100%; margin-top: 10px; padding: 12px;
+    background: var(--danger-soft); color: var(--danger);
+    border-radius: 12px; font-size: 14px; font-weight: 700;
+  }
+
+  /* ---- pin ---- */
+  .pin-wrap { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .pin-card { width: 100%; max-width: 360px; padding: 32px 28px; text-align: center; }
+  .pin-card h1 { font-size: 19px; margin: 0; }
+  .pin-card .sub { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+  .pin-input {
+    width: 100%; margin-top: 22px; text-align: center;
+    font-size: 24px; letter-spacing: 0.4em;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    padding: 12px;
+  }
+  .pin-input:focus { border-color: var(--accent); outline: none; }
+  .pin-btn { width: 100%; margin-top: 18px; }
+  .pin-hint { margin-top: 16px; font-size: 12px; color: var(--faint); }
+  .pin-hint code { background: var(--chip); padding: 2px 8px; border-radius: 6px; font-size: 13px; }
+
+  /* ---- toast ---- */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    z-index: 40; background: var(--text); color: var(--bg);
+    border-radius: 999px; padding: 10px 20px;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+    max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+    animation: pop 0.15s ease-out;
+  }
+  @keyframes pop { from { transform: translate(-50%, 8px); opacity: 0; } }
+  .hidden { display: none !important; }
+</style>
+
+<noscript>
+  <div style="max-width:360px;margin:40px auto;padding:24px;border:1px solid #d9dee6;border-radius:14px;text-align:center;font-size:14px;line-height:1.8">
+    ⚠️ このプレビューでは JavaScript が無効のため、デモを操作できません。<br>
+    お使いのブラウザでJavaScriptを有効にして再度お開きください。
+  </div>
+</noscript>
+<div id="app-view">
+  <header>
+    <div class="head-inner">
+      <h1>📦 棚卸し <span class="demo-badge">デモ</span></h1>
+      <nav class="tabs">
+        <button id="tab-entry" class="tab active" type="button">入力</button>
+        <button id="tab-records" class="tab" type="button">一覧</button>
+      </nav>
+    </div>
+    <div class="notice">デモ版 — データはこの端末のブラウザ内にのみ保存されます（Excel連携なし）</div>
+  </header>
+
+  <main class="wrap">
+    <section id="entry-view">
+      <div class="card member-card">
+        <span class="label">入力者（だれが数えていますか？）</span>
+        <div id="member-row" class="member-row"></div>
+      </div>
+      <input id="search" class="search" placeholder="🔍 品名・原料コードで検索">
+      <div id="cat-row" class="cat-row"></div>
+      <ul id="item-list" class="items"></ul>
+      <p id="item-empty" class="empty hidden">該当する品目がありません</p>
+      <p id="item-more" class="empty hidden"></p>
+      <button id="manual-btn" class="manual-btn" type="button">＋ マスタにない品目を手入力</button>
+    </section>
+
+    <section id="records-view" class="hidden">
+      <div class="rec-head">
+        <span class="rec-count">記録 <b id="rec-count">0</b> 件</span>
+        <button id="csv-btn" class="csv-btn" type="button">CSV出力</button>
+      </div>
+      <div id="rec-groups"></div>
+      <p id="rec-empty" class="empty hidden">まだ記録がありません。「入力」タブから登録してください。</p>
+    </section>
+  </main>
+</div>
+
+<div id="sheet-overlay" class="overlay hidden">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <h2 id="sheet-title">数量を入力</h2>
+      <button id="sheet-close" class="x-btn" type="button" aria-label="閉じる">×</button>
+    </div>
+    <div id="item-summary" class="item-summary hidden">
+      <p id="summary-name"></p>
+      <p id="summary-sub" class="item-sub"></p>
+    </div>
+    <div id="name-row" class="f-row hidden">
+      <div class="f-col">
+        <span class="label">品名 *</span>
+        <input id="f-name" class="field" placeholder="品名を入力">
+      </div>
+      <div class="f-col narrow">
+        <span class="label">カテゴリ</span>
+        <select id="f-cat" class="field"></select>
+      </div>
+    </div>
+    <div class="f-row">
+      <div class="f-col">
+        <span class="label">数量 *</span>
+        <div class="qty-row">
+          <button id="qty-minus" class="step-btn" type="button">−</button>
+          <input id="f-qty" class="qty-input" inputmode="decimal" placeholder="0">
+          <button id="qty-plus" class="step-btn" type="button">＋</button>
+          <span id="unit-fixed" class="unit-fixed hidden"></span>
+          <div id="unit-col" class="unit-col hidden"></div>
+          <input id="f-unit" class="unit-input hidden" list="unit-suggestions">
+          <datalist id="unit-suggestions">
+            <option value="kg"></option><option value="箱"></option><option value="本"></option>
+            <option value="個"></option><option value="袋"></option><option value="L"></option>
+          </datalist>
+        </div>
+      </div>
+    </div>
+    <div id="partial-box" class="partial-box hidden">
+      <span class="label">半端量（任意・上の数量のうち端数分）</span>
+      <div class="qty-row" style="margin-top:5px">
+        <input id="f-partial" class="partial-input" inputmode="decimal" placeholder="0">
+        <span id="partial-unit" class="unit-fixed" style="width:auto"></span>
+        <span class="total-label" style="color:var(--faint);font-weight:400">数量のうち半端分のメモ</span>
+      </div>
+    </div>
+    <div id="expired-box" class="partial-box hidden">
+      <span class="label">⚠ 期限切れ分（任意・上の数量には含めない）</span>
+      <div class="qty-row" style="margin-top:5px">
+        <input id="f-expqty" class="partial-input" inputmode="decimal" placeholder="0" style="width:100px">
+        <span id="expired-unit" class="unit-fixed" style="width:auto"></span>
+        <input id="f-expdate" class="field" type="date" style="flex:1;margin-top:0" aria-label="期限切れ日">
+      </div>
+    </div>
+    <div class="f-row">
+      <div class="f-col">
+        <span class="label">保管場所（任意）</span>
+        <input id="f-loc" class="field" placeholder="例: 2F資材庫">
+      </div>
+      <div class="f-col narrow">
+        <span class="label">期限区分（自動・変更可）</span>
+        <select id="f-ekind" class="field">
+          <option value="">なし</option>
+          <option>来月期限</option>
+          <option>再来月期限</option>
+          <option>期限切れ</option>
+        </select>
+      </div>
+    </div>
+    <div class="f-row">
+      <div class="f-col">
+        <span class="label">期限日（任意）</span>
+        <input id="f-edate" class="field" type="date">
+      </div>
+      <div class="f-col">
+        <span class="label">入力者 *</span>
+        <select id="f-member" class="field"></select>
+      </div>
+    </div>
+    <div class="f-row">
+      <div class="f-col">
+        <span class="label">備考（任意）</span>
+        <input id="f-note" class="field" placeholder="メモ">
+      </div>
+    </div>
+    <p id="f-err" class="err hidden"></p>
+    <button id="f-submit" class="submit-btn" type="button">登録する</button>
+    <button id="f-delete" class="del-btn hidden" type="button">この記録を削除</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="application/json" id="master-data">[{"id":"M001","code":"300076000","name":"工業用 ７PTDB-B(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M002","code":"300077000","name":"工業用 ７PTDB-P(粉)","cat":"原料豆","units":["kg"],"note":""},{"id":"M003","code":"300078000","name":"工業用 ７PTDﾗﾃ用(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M004","code":"310941000","name":"工業用 ORBオリジナルブレンド(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M005","code":"311222000","name":"工業用 LC ﾗﾃﾌﾞﾚﾝﾄﾞ（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M006","code":"314853000","name":"工業用 Cafeﾌﾞﾚﾝﾄﾞ3 (豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M007","code":"315032000","name":"工業用 PBﾌﾞﾚﾝﾄﾞF (豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M008","code":"315190000","name":"工業用 TC-B2 (豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M009","code":"315190000","name":"工業用 TC-B(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M010","code":"315191000","name":"工業用 TC-C2 (豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M011","code":"315269000","name":"工業用 Healthyﾌﾞﾚﾝﾄﾞ(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M012","code":"320541000","name":"工業用 FM ｶｳﾝﾀｰｺｰﾋｰﾀﾞｰｸ用(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M013","code":"320592000","name":"工業用 ｶﾌｪｲﾝﾚｽMW100(豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M014","code":"320594000","name":"ｳｴｼﾏﾌﾞﾚﾝﾄﾞ SUS（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M015","code":"320598000","name":"工業用 ｱﾛﾏﾌﾞﾚﾝﾄﾞ４(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M016","code":"320603000","name":"工業用 D&Rブレンド（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M017","code":"322509000","name":"工業用 ﾓｶﾅﾁｭﾗﾙH (粉）","cat":"原料豆","units":["kg"],"note":""},{"id":"M018","code":"323210000","name":"工業用 FM-Bﾌﾞﾚﾝﾄﾞ３","cat":"原料豆","units":["kg"],"note":""},{"id":"M019","code":"323425000","name":"工業用 CB-L4（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M020","code":"323466000","name":"工業用 FBブレンド2","cat":"原料豆","units":["kg"],"note":""},{"id":"M021","code":"333292000","name":"流通企業営業 1部ブレンド（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M022","code":"333293000","name":"流通企業営業1部 ﾃﾞｶﾌｪブレンド（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M023","code":"333351000","name":"工業用 流通企業営業1部W認証ブレンド2（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M024","code":"333359000","name":"工業用 RICHブレンド10（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M025","code":"333365000","name":"工業用 ゲイシャブレンド4 (豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M026","code":"333454000","name":"工業用 CBB海外用(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M027","code":"333457000","name":"工業用 CBB-P海外用(粉)","cat":"原料豆","units":["kg"],"note":""},{"id":"M028","code":"333455000","name":"工業用 CBラテ海外用(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M029","code":"351182000","name":"工業用 LWSﾌﾞﾚﾝﾄﾞ２（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M030","code":"351184000","name":"工業用 CGCﾌﾞﾚﾝﾄﾞ３（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M031","code":"351184001","name":"工業用 アフリカンブレンド(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M032","code":"333463000","name":"工業用 7PCVS無糖(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M033","code":"333464000","name":"工業用 7PCVS甘さひかえめ(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M034","code":"333492000","name":"工業用 RICHブレンド11（豆）","cat":"原料豆","units":["kg"],"note":""},{"id":"M035","code":"333440000","name":"工業用 SKN-7(豆) 六甲","cat":"原料豆","units":["kg"],"note":""},{"id":"M036","code":"","name":"工業用 SKN-7(豆) 名古屋","cat":"原料豆","units":["kg"],"note":""},{"id":"M037","code":"","name":"工業用 SKN-7(豆) 兵庫","cat":"原料豆","units":["kg"],"note":""},{"id":"M038","code":"333539000","name":"工業用 CBB-8(豆)","cat":"原料豆","units":["kg"],"note":""},{"id":"M039","code":"400065000","name":"Brazilian I/C S6E2N(6762)","cat":"副原料","units":["kg"],"note":""},{"id":"M040","code":"950001000","name":"重曹 （炭酸水素ﾅﾄﾘｳﾑ)","cat":"副原料","units":["kg"],"note":""},{"id":"M041","code":"950003000","name":"全粉乳","cat":"副原料","units":["kg"],"note":""},{"id":"M042","code":"950004000","name":"脱脂粉乳","cat":"副原料","units":["kg"],"note":""},{"id":"M043","code":"950100000","name":"ｼｮ糖型液糖 B×68","cat":"副原料","units":["kg"],"note":""},{"id":"M044","code":"950202000","name":"原料 殺菌乳","cat":"副原料","units":["kg"],"note":""},{"id":"M045","code":"950401000","name":"ｼｭｶﾞｰｴｽﾃﾙ S-570","cat":"副原料","units":["kg"],"note":""},{"id":"M046","code":"950404000","name":"ﾘｮｰﾄｰｼｭｶﾞｰ ｴｽﾃﾙP-1670","cat":"副原料","units":["kg"],"note":""},{"id":"M047","code":"950418000","name":"ｼﾘｺｰﾝ KM-72F","cat":"副原料","units":["kg"],"note":""},{"id":"M048","code":"950427000","name":"泡ﾌﾞﾚｲｸ G-109","cat":"副原料","units":["kg"],"note":""},{"id":"M049","code":"950485000","name":"ｾｵﾗｽ SC-900S","cat":"副原料","units":["kg"],"note":""},{"id":"M050","code":"950494000","name":"SﾋﾞﾀｰⅡ","cat":"副原料","units":["kg"],"note":""},{"id":"M051","code":"950527000","name":"粉末製剤UH","cat":"副原料","units":["kg"],"note":""},{"id":"M052","code":"950529000","name":"乳糖","cat":"副原料","units":["kg"],"note":""},{"id":"M053","code":"950550000","name":"ﾘｮｰﾄｰCP-Y040","cat":"副原料","units":["kg"],"note":""},{"id":"M054","code":"950608000","name":"全脂濃縮乳","cat":"副原料","units":["kg"],"note":""},{"id":"M055","code":"950799000","name":"ｽﾏｰﾄﾃｲｽﾄ","cat":"副原料","units":["kg"],"note":""},{"id":"M056","code":"950865000","name":"ｽｸﾗﾛｰｽ","cat":"副原料","units":["kg"],"note":""},{"id":"M057","code":"950931000","name":"ｶｾﾞｲﾝﾅﾄﾘｳﾑ","cat":"副原料","units":["kg"],"note":""},{"id":"M058","code":"950955000","name":"L-ｱｽｺﾙﾋﾞﾝ酸 ﾅﾄﾘｳﾑ","cat":"副原料","units":["kg"],"note":""},{"id":"M059","code":"951135000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ No.102090(P)","cat":"副原料","units":["kg"],"note":""},{"id":"M060","code":"951169000","name":"ｶﾗｷﾞﾆﾝ CSI-1(F)","cat":"副原料","units":["kg"],"note":""},{"id":"M061","code":"951184000","name":"ﾘｮｰﾄｰｴｽﾃﾙ CA-F4","cat":"副原料","units":["kg"],"note":""},{"id":"M062","code":"951241000","name":"SﾋﾞﾀｰCF","cat":"副原料","units":["kg"],"note":""},{"id":"M063","code":"951252000","name":"ﾐﾙｸﾓﾃﾞｨﾌｧｲｱｰ No.1(P)","cat":"副原料","units":["kg"],"note":""},{"id":"M064","code":"951809000","name":"食塩(ﾄﾐﾀｿﾙﾄ)","cat":"副原料","units":["kg"],"note":""},{"id":"M065","code":"951890000","name":"ｶﾗｷﾞﾆﾝ Hi-pHive","cat":"副原料","units":["kg"],"note":""},{"id":"M066","code":"951954000","name":"北海道産生ｸﾘｰﾑ (ﾌﾚｯｼｭ47)浦幌乳","cat":"副原料","units":["kg"],"note":""},{"id":"M067","code":"951965000","name":"黒糖焦がし D-1","cat":"副原料","units":["kg"],"note":""},{"id":"M068","code":"952630000","name":"ｻﾝﾃﾞｯｸ#70FN","cat":"副原料","units":["kg"],"note":""},{"id":"M069","code":"952639000","name":"ｱｾｽﾌｧﾑK （Ｔ－ＡＣＫ）","cat":"副原料","units":["kg"],"note":""},{"id":"M070","code":"952795000","name":"呈未ﾍﾞｰｽ FL1560P","cat":"副原料","units":["kg"],"note":""},{"id":"M071","code":"952825000","name":"WPP-29 ＮZ (粉末調整剤)","cat":"副原料","units":["kg"],"note":""},{"id":"M072","code":"953099000","name":"SPP-29 (粉乳調整品)","cat":"副原料","units":["kg"],"note":""},{"id":"M073","code":"953113000","name":"ﾀﾝﾅｰｾﾞ","cat":"副原料","units":["kg"],"note":""},{"id":"M074","code":"953206000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ SW-16049","cat":"副原料","units":["kg"],"note":""},{"id":"M075","code":"953330000","name":"ｼﾘｺｰﾝ KM-72GS","cat":"副原料","units":["kg"],"note":""},{"id":"M076","code":"953331000","name":"ﾘｮｰﾄｰｼｭｶﾞｰ ｴｽﾃﾙ S-370","cat":"副原料","units":["kg"],"note":""},{"id":"M077","code":"953760000","name":"甘蔗黒蜜OHS","cat":"副原料","units":["kg"],"note":""},{"id":"M078","code":"953760000","name":"甘蔗黒蜜","cat":"副原料","units":["kg"],"note":""},{"id":"M079","code":"953761000","name":"ﾎﾓｹﾞﾝ No.3286","cat":"副原料","units":["kg"],"note":""},{"id":"M080","code":"953762000","name":"ｺｸﾄｳﾍﾞｰｽ No.20-8518FG","cat":"副原料","units":["kg"],"note":""},{"id":"M081","code":"953764000","name":"みるくのﾐﾈﾗﾙ L10","cat":"副原料","units":["kg"],"note":""},{"id":"M082","code":"953765000","name":"ﾌﾞﾗｼﾞﾙﾊｲﾊﾟｰﾛｰｽﾄ TFG22872","cat":"副原料","units":["kg"],"note":""},{"id":"M083","code":"953790000","name":"ﾎﾓｹﾞﾝ No.3293","cat":"副原料","units":["kg"],"note":""},{"id":"M084","code":"953796000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ TFG25944","cat":"副原料","units":["kg"],"note":""},{"id":"M085","code":"953873000","name":"ﾎﾓｹﾞﾝ No.3299","cat":"副原料","units":["kg"],"note":""},{"id":"M086","code":"953907000","name":"ｱﾜﾌﾞﾚｰｸ LJ-01","cat":"副原料","units":["kg"],"note":""},{"id":"M087","code":"954852000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ MQ-23148","cat":"副原料","units":["kg"],"note":""},{"id":"M088","code":"954853000","name":"ﾏｯﾁｬﾌﾚｰﾊﾞｰ No.21-9962","cat":"副原料","units":["kg"],"note":""},{"id":"M089","code":"954854000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ No.22－0358","cat":"副原料","units":["kg"],"note":""},{"id":"M090","code":"954855000","name":"ﾎﾓｹﾞﾝNo.3310","cat":"副原料","units":["kg"],"note":""},{"id":"M091","code":"954856000","name":"黒糖ﾌﾚｰﾊﾞｰ CU-53733","cat":"副原料","units":["kg"],"note":""},{"id":"M092","code":"954857000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ No.6-18300","cat":"副原料","units":["kg"],"note":""},{"id":"M093","code":"954863000","name":"ﾌｧｯﾄﾃｰｽﾄ ｴﾝﾊﾝｻｰ TAS-2780","cat":"副原料","units":["kg"],"note":""},{"id":"M094","code":"955320000","name":"ﾐﾙﾚｱUS2 （900Kg)","cat":"副原料","units":["kg"],"note":""},{"id":"M095","code":"960391000","name":"ﾐﾙｸﾍﾞｰｽ No.6028FA(P)","cat":"副原料","units":["kg"],"note":""},{"id":"M096","code":"960784000","name":"殺菌宇治抹茶D","cat":"副原料","units":["kg"],"note":""},{"id":"M097","code":"961236000","name":"ｺｰﾋｰﾌﾚｰﾊﾞｰ No.21-3127","cat":"副原料","units":["kg"],"note":""},{"id":"M098","code":"961274000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ TFH28514","cat":"副原料","units":["kg"],"note":""},{"id":"M099","code":"961275000","name":"玉露フレーバー OFE48109","cat":"副原料","units":["kg"],"note":""},{"id":"M100","code":"961509000","name":"ﾎﾓｹﾞﾝ No.718(D)","cat":"副原料","units":["kg"],"note":""},{"id":"M101","code":"961561000","name":"ｸﾘｰﾑﾌﾚｰﾊﾞｰ TFJ24709","cat":"副原料","units":["kg"],"note":""},{"id":"M102","code":"961946000","name":"ﾌｧｲﾊﾞｰｿﾙ2","cat":"副原料","units":["kg"],"note":""},{"id":"M103","code":"961973000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ SW-22500","cat":"副原料","units":["kg"],"note":""},{"id":"M104","code":"961974000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ BT-25738","cat":"副原料","units":["kg"],"note":""},{"id":"M105","code":"961975000","name":"ｺｰﾋｰﾌﾚｰﾊﾞｰ OFG43403","cat":"副原料","units":["kg"],"note":""},{"id":"M106","code":"961976000","name":"ﾌｧｯﾄﾃｰｽﾄ ｴﾝﾊﾝｻｰ TAS-5293","cat":"副原料","units":["kg"],"note":""},{"id":"M107","code":"961984000","name":"ｺｰﾋｰ豆加工品 UC-2B","cat":"副原料","units":["kg"],"note":""},{"id":"M108","code":"962291000","name":"黒糖焦がし D-2","cat":"副原料","units":["kg"],"note":""},{"id":"M109","code":"962450000","name":"料理用焙焦糖","cat":"副原料","units":["kg"],"note":""},{"id":"M110","code":"962451000","name":"ミルクフレーバー OFG46999","cat":"副原料","units":["kg"],"note":""},{"id":"M111","code":"962457000","name":"黒蜜UBS","cat":"副原料","units":["kg"],"note":""},{"id":"M112","code":"962682000","name":"ミライMC80","cat":"副原料","units":["kg"],"note":""},{"id":"M113","code":"962683000","name":"VIVAクリーミー45","cat":"副原料","units":["kg"],"note":""},{"id":"M114","code":"962684000","name":"ｺｰﾋｰﾌﾚｰﾊﾞｰ TFK28814","cat":"副原料","units":["kg"],"note":""},{"id":"M115","code":"962685000","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ No.6-21088","cat":"副原料","units":["kg"],"note":""},{"id":"M116","code":"962986000","name":"生クリームフレーバー OFH42260","cat":"副原料","units":["kg"],"note":""},{"id":"M117","code":"962983000","name":"コーヒーフレーバ TFK28756","cat":"副原料","units":["kg"],"note":""},{"id":"M118","code":"962984000","name":"コーヒーフレーバーTFK28760","cat":"副原料","units":["kg"],"note":""},{"id":"M119","code":"962985000","name":"練乳フレーバー OFH42516","cat":"副原料","units":["kg"],"note":""},{"id":"M120","code":"962989000","name":"加糖練乳","cat":"副原料","units":["kg"],"note":""},{"id":"M121","code":"","name":"ﾐﾙｸﾌﾚｰﾊﾞｰ OFH45811","cat":"副原料","units":["kg"],"note":""},{"id":"M122","code":"","name":"ｻﾝｴｱｰ S－30","cat":"副原料","units":["kg"],"note":""},{"id":"M123","code":"","name":"ﾘｮｰﾄｰｼｭｶﾞｰｴｽﾃﾙ S-470","cat":"副原料","units":["kg"],"note":""},{"id":"M124","code":"","name":"ホモゲンNO.3388 (テスト)","cat":"副原料","units":["kg"],"note":"テスト品"},{"id":"M125","code":"","name":"ホモゲンNO.3395 (テスト)","cat":"副原料","units":["kg"],"note":"テスト品"},{"id":"M126","code":"","name":"天然水ﾌｨﾙﾀｰ 5μ （ロキテクノ）","cat":"フィルター","units":["箱","本"],"note":"型番: E1P050-30S7"},{"id":"M127","code":"","name":"天然水ﾌｨﾙﾀｰ 1μ （ロキテクノ）","cat":"フィルター","units":["箱","本"],"note":"型番: E1P010-30S7"},{"id":"M128","code":"","name":"天然水ﾌｨﾙﾀｰ 0.45μ （ポール）","cat":"フィルター","units":["箱","本"],"note":"型番: WFN0,45-30US-M7 314/12"},{"id":"M129","code":"","name":"天然水ﾌｨﾙﾀｰ 0.2μ （ポール）","cat":"フィルター","units":["箱","本"],"note":"型番: AB3FFN7WH4/12"},{"id":"M130","code":"","name":"天然水ﾌｨﾙﾀｰ 10μ","cat":"フィルター","units":["箱","本"],"note":"型番: /12"},{"id":"M131","code":"","name":"天然水ﾌｨﾙﾀｰ 3μ","cat":"フィルター","units":["箱","本"],"note":"型番: NXA3-30U-M7S/12"},{"id":"M132","code":"","name":"ｲｰﾄﾝﾌｨﾙﾀｰ","cat":"フィルター","units":["箱","本"],"note":""},{"id":"M133","code":"","name":"帝人ﾌｨﾙﾀｰ 5μ （ﾃｽﾄ品）","cat":"フィルター","units":["箱","本"],"note":""},{"id":"M134","code":"","name":"帝人ﾌｨﾙﾀｰ 1μ （ﾃｽﾄ品）","cat":"フィルター","units":["箱","本"],"note":""},{"id":"M135","code":"","name":"３M 10μ 126A （R缶）","cat":"フィルター","units":["箱","本"],"note":"型番: 163"},{"id":"M136","code":"","name":"３M 10μ 527A （PET）","cat":"フィルター","units":["箱","本"],"note":"型番: 177"},{"id":"M137","code":"","name":"３M ５μ 525A （PET)","cat":"フィルター","units":["箱","本"],"note":"型番: 48"},{"id":"M138","code":"","name":"天然水ﾌｨﾙﾀｰ 1.5μ （ポール）","cat":"フィルター","units":["箱","本"],"note":""},{"id":"M139","code":"","name":"帝人ﾌｨﾙﾀｰ 5μ DPE05073S","cat":"フィルター","units":["箱","本"],"note":""}]</script>
+<script>
+(() => {
+  "use strict";
+  const MASTER = JSON.parse(document.getElementById("master-data").textContent);
+  const MEMBERS = ["入力者A", "入力者B", "入力者C"];
+  const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"];
+  const LS = { auth: "demo-inv-auth", member: "demo-inv-member", records: "demo-inv-records" };
+  const $ = (id) => document.getElementById(id);
+
+  // localStorageが使えない環境（iOSのファイルプレビュー等）ではメモリ保存にフォールバック
+  const memStore = {};
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return memStore[k] ?? null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} memStore[k] = v; },
+  };
+
+  // ---------- state ----------
+  let records = [];
+  try { records = JSON.parse(store.get(LS.records) || "[]"); } catch { records = []; }
+  let member = store.get(LS.member) || "";
+  if (!MEMBERS.includes(member)) member = "";
+  let category = "すべて";
+  let form = null; // { kind: 'new'|'manual'|'edit', item?, record? }
+
+  const saveRecords = () => store.set(LS.records, JSON.stringify(records));
+  const uuid = () =>
+    (crypto.randomUUID ? crypto.randomUUID() : "id-" + Date.now() + "-" + Math.random().toString(16).slice(2));
+
+  const nowStamp = () => {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    const ymd = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return { recordedAt: `${ymd} ${p(d.getHours())}:${p(d.getMinutes())}`, month: ymd.slice(0, 7) };
+  };
+
+  // 検索正規化: NFKC + ひらがな→カタカナ + 小文字化（本番と同ロジック）
+  const norm = (s) =>
+    s.normalize("NFKC")
+      .replace(/[ぁ-ゖ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
+  // ---------- tabs ----------
+  const showTab = (name) => {
+    $("entry-view").classList.toggle("hidden", name !== "entry");
+    $("records-view").classList.toggle("hidden", name !== "records");
+    $("tab-entry").classList.toggle("active", name === "entry");
+    $("tab-records").classList.toggle("active", name === "records");
+    if (name === "records") renderRecords();
+  };
+  $("tab-entry").addEventListener("click", () => showTab("entry"));
+  $("tab-records").addEventListener("click", () => showTab("records"));
+
+  // ---------- toast ----------
+  let toastTimer = 0;
+  const toast = (msg) => {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.remove("hidden");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add("hidden"), 2500);
+  };
+
+  // ---------- members ----------
+  const renderMembers = () => {
+    const row = $("member-row");
+    row.replaceChildren();
+    for (const m of MEMBERS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip" + (member === m ? " on" : "");
+      b.textContent = m;
+      b.addEventListener("click", () => {
+        member = m;
+        store.set(LS.member, m);
+        renderMembers();
+      });
+      row.appendChild(b);
+    }
+  };
+
+  // ---------- categories ----------
+  const renderCats = () => {
+    const cats = ["すべて", ...new Set(MASTER.map((i) => i.cat))];
+    const row = $("cat-row");
+    row.replaceChildren();
+    for (const c of cats) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip cat-chip" + (category === c ? " on" : "");
+      b.textContent = c;
+      b.addEventListener("click", () => {
+        category = c;
+        renderCats();
+        renderItems();
+      });
+      row.appendChild(b);
+    }
+  };
+
+  // ---------- item list ----------
+  const renderItems = () => {
+    const q = norm($("search").value);
+    const hits = MASTER.filter(
+      (i) =>
+        (category === "すべて" || i.cat === category) &&
+        (q === "" || norm(i.name).includes(q) || i.code.includes(q.trim())),
+    );
+    const list = $("item-list");
+    list.replaceChildren();
+    for (const item of hits.slice(0, 50)) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "item-btn";
+      const name = document.createElement("div");
+      name.className = "item-name";
+      name.textContent = item.name;
+      const sub = document.createElement("div");
+      sub.className = "item-sub";
+      sub.textContent =
+        (item.code ? item.code + "　" : "") + item.cat + "　単位: " + item.units.join("/");
+      b.append(name, sub);
+      b.addEventListener("click", () => openForm({ kind: "new", item }));
+      li.appendChild(b);
+      list.appendChild(li);
+    }
+    $("item-empty").classList.toggle("hidden", hits.length !== 0);
+    const more = $("item-more");
+    more.classList.toggle("hidden", hits.length <= 50);
+    if (hits.length > 50) more.textContent = `他 ${hits.length - 50} 件 — 検索で絞り込んでください`;
+  };
+  $("search").addEventListener("input", renderItems);
+  $("manual-btn").addEventListener("click", () => openForm({ kind: "manual" }));
+
+  // ---------- form sheet ----------
+  const openForm = (mode) => {
+    form = mode;
+    const item = mode.kind === "new" ? mode.item : null;
+    const rec = mode.kind === "edit" ? mode.record : null;
+
+    $("sheet-title").textContent =
+      mode.kind === "edit" ? "記録を編集" : mode.kind === "manual" ? "手入力で登録" : "数量を入力";
+
+    // 品名まわり
+    $("item-summary").classList.toggle("hidden", !item);
+    $("name-row").classList.toggle("hidden", !!item);
+    if (item) {
+      $("summary-name").textContent = item.name;
+      $("summary-sub").textContent =
+        (item.code ? "コード: " + item.code + "　" : "") + item.cat + (item.note ? "　" + item.note : "");
+    } else {
+      $("f-name").value = rec ? rec.name : "";
+      const cat = rec ? rec.category || "その他" : "その他";
+      const catSel = $("f-cat");
+      catSel.replaceChildren();
+      for (const c of CATEGORIES.includes(cat) ? CATEGORIES : [cat, ...CATEGORIES]) {
+        const o = document.createElement("option");
+        o.value = o.textContent = c;
+        catSel.appendChild(o);
+      }
+      catSel.value = cat;
+    }
+
+    // 数量は半端込みの合計をそのまま入力・表示（期限切れ分は含めない）
+    $("f-qty").value = rec ? String(rec.quantity) : "";
+    $("f-partial").value = rec && rec.partialQty ? String(rec.partialQty) : "";
+    $("f-expqty").value = rec && rec.expiredQty ? String(rec.expiredQty) : "";
+    $("f-expdate").value = rec ? rec.expiredDate || "" : "";
+    const units = item ? item.units : null;
+    const multi = units && units.length > 1;
+    $("unit-col").classList.toggle("hidden", !multi);
+    $("unit-fixed").classList.toggle("hidden", !(item && !multi));
+    $("f-unit").classList.toggle("hidden", !!item);
+    let unit = rec ? rec.unit : item ? item.units[0] : "個";
+    const renderUnits = () => {
+      if (!multi) return;
+      const col = $("unit-col");
+      col.replaceChildren();
+      for (const u of units) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "unit-chip" + (unit === u ? " on" : "");
+        b.textContent = u;
+        b.addEventListener("click", () => { unit = u; renderUnits(); updateUnits(); });
+        col.appendChild(b);
+      }
+    };
+    if (multi && !units.includes(unit)) unit = units[0];
+    renderUnits();
+    if (item && !multi) $("unit-fixed").textContent = unit;
+    if (!item) $("f-unit").value = unit;
+    getUnit = () => (item ? unit : $("f-unit").value.trim() || "個");
+    setPartialBox(item ? item.cat : rec ? rec.category : $("f-cat").value);
+
+    // その他フィールド
+    $("f-loc").value = rec ? rec.location : "";
+    $("f-edate").value = rec ? rec.expiryDate : "";
+    $("f-ekind").value = rec ? rec.expiryKind : "";
+    $("f-note").value = rec ? rec.note : "";
+    const memSel = $("f-member");
+    memSel.replaceChildren();
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "選択してください";
+    memSel.appendChild(none);
+    for (const m of MEMBERS) {
+      const o = document.createElement("option");
+      o.value = o.textContent = m;
+      memSel.appendChild(o);
+    }
+    memSel.value = rec ? rec.member : member;
+
+    $("f-err").classList.add("hidden");
+    $("f-submit").textContent = mode.kind === "edit" ? "更新する" : "登録する";
+    $("f-delete").classList.toggle("hidden", mode.kind !== "edit");
+    $("sheet-overlay").classList.remove("hidden");
+    if (mode.kind === "new") $("f-qty").focus();
+  };
+  let getUnit = () => "個";
+
+  // 半端量（副原料のみ）・期限切れ別枠（原料豆/副原料）の表示制御と単位ラベル
+  const partialVisible = () => !$("partial-box").classList.contains("hidden");
+  const expiredVisible = () => !$("expired-box").classList.contains("hidden");
+  const updateUnits = () => {
+    const u = getUnit();
+    $("partial-unit").textContent = u;
+    $("expired-unit").textContent = u;
+  };
+  const setPartialBox = (cat) => {
+    $("partial-box").classList.toggle("hidden", cat !== "副原料");
+    $("expired-box").classList.toggle("hidden", cat !== "副原料" && cat !== "原料豆");
+    updateUnits();
+  };
+  $("f-unit").addEventListener("input", updateUnits);
+  $("f-cat").addEventListener("change", () => setPartialBox($("f-cat").value));
+
+  // 期限日 → 期限区分の自動判定（月末棚卸し基準・手動変更可）
+  const expiryKindFor = (dateStr) => {
+    const m = /^(\d{4})-(\d{2})/.exec(dateStr || "");
+    if (!m) return "";
+    const now = new Date();
+    const diff = Number(m[1]) * 12 + Number(m[2]) - 1 - (now.getFullYear() * 12 + now.getMonth());
+    if (diff <= 0) return "期限切れ";
+    if (diff === 1) return "来月期限";
+    if (diff === 2) return "再来月期限";
+    return "";
+  };
+  $("f-edate").addEventListener("change", () => {
+    $("f-ekind").value = expiryKindFor($("f-edate").value);
+  });
+
+  const closeForm = () => { form = null; $("sheet-overlay").classList.add("hidden"); };
+  $("sheet-close").addEventListener("click", closeForm);
+  $("sheet-overlay").addEventListener("click", (e) => { if (e.target === $("sheet-overlay")) closeForm(); });
+
+  const stepQty = (d) => {
+    const cur = parseFloat($("f-qty").value);
+    const next = (Number.isFinite(cur) ? cur : 0) + d;
+    $("f-qty").value = String(Math.max(0, Math.round(next * 1000) / 1000));
+  };
+  $("qty-minus").addEventListener("click", () => stepQty(-1));
+  $("qty-plus").addEventListener("click", () => stepQty(1));
+
+  const showFormError = (msg) => {
+    const el = $("f-err");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  };
+
+  $("f-submit").addEventListener("click", () => {
+    if (!form) return;
+    const item = form.kind === "new" ? form.item : null;
+    const rec = form.kind === "edit" ? form.record : null;
+    const name = item ? item.name : $("f-name").value.trim();
+    const mem = $("f-member").value;
+    const q = parseFloat($("f-qty").value);
+    if (!name) return showFormError("品名を入力してください");
+    if (!mem) return showFormError("入力者を選択してください");
+    if (!Number.isFinite(q) || q < 0) return showFormError("数量には0以上の数値を入力してください");
+    const partial = partialVisible() ? parseFloat($("f-partial").value) || 0 : 0;
+    if (partial < 0 || partial > q) return showFormError("半端量は0以上・数量（合計）以下で入力してください");
+    const expired = expiredVisible() ? parseFloat($("f-expqty").value) || 0 : 0;
+    if (expired < 0) return showFormError("期限切れ量には0以上の数値を入力してください");
+
+    const stamp = nowStamp();
+    const saved = {
+      id: rec ? rec.id : uuid(),
+      recordedAt: rec ? rec.recordedAt : stamp.recordedAt,
+      month: rec ? rec.month : stamp.month,
+      code: rec ? rec.code : item ? item.code : "",
+      name,
+      category: item ? item.cat : $("f-cat").value,
+      quantity: q,
+      unit: getUnit(),
+      partialQty: partial,
+      expiredQty: expired,
+      expiredDate: expiredVisible() ? $("f-expdate").value : "",
+      location: $("f-loc").value.trim(),
+      expiryDate: $("f-edate").value,
+      expiryKind: $("f-ekind").value,
+      member: mem,
+      note: $("f-note").value.trim(),
+    };
+    if (rec) {
+      records = records.map((r) => (r.id === rec.id ? saved : r));
+    } else {
+      records.push(saved);
+    }
+    saveRecords();
+    member = mem;
+    store.set(LS.member, mem);
+    renderMembers();
+    closeForm();
+    $("search").value = "";
+    renderItems();
+    renderRecords();
+    toast(rec ? "更新しました" : `登録しました: ${saved.name} ${saved.quantity}${saved.unit}`);
+  });
+
+  $("f-delete").addEventListener("click", () => {
+    if (!form || form.kind !== "edit") return;
+    const rec = form.record;
+    if (!window.confirm(`「${rec.name}」の記録を削除しますか？`)) return;
+    records = records.filter((r) => r.id !== rec.id);
+    saveRecords();
+    closeForm();
+    renderRecords();
+    toast("削除しました");
+  });
+
+  // ---------- records ----------
+  const renderRecords = () => {
+    $("rec-count").textContent = String(records.length);
+    $("rec-empty").classList.toggle("hidden", records.length !== 0);
+    const groups = new Map();
+    for (const r of [...records].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))) {
+      const k = r.month || "月不明";
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    }
+    const wrap = $("rec-groups");
+    wrap.replaceChildren();
+    for (const [month, list] of [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]))) {
+      const h = document.createElement("h2");
+      h.className = "month-h";
+      h.textContent = `${month}（${list.length}件）`;
+      wrap.appendChild(h);
+      const ul = document.createElement("ul");
+      ul.className = "items";
+      for (const r of list) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "rec-btn";
+        const top = document.createElement("div");
+        top.className = "rec-top";
+        const nm = document.createElement("span");
+        nm.className = "rec-name";
+        nm.textContent = r.name;
+        const qt = document.createElement("span");
+        qt.className = "rec-qty";
+        qt.textContent = String(r.quantity);
+        const un = document.createElement("small");
+        un.textContent = r.unit;
+        qt.appendChild(un);
+        top.append(nm, qt);
+        const sub = document.createElement("div");
+        sub.className = "rec-sub";
+        sub.textContent =
+          `${r.recordedAt}　${r.member}` +
+          (r.partialQty ? `　(内 半端${r.partialQty}${r.unit})` : "") +
+          (r.expiredQty ? `　⚠期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}` : "") +
+          (r.location ? `　📍${r.location}` : "") +
+          (r.expiryKind ? `　⚠${r.expiryKind}` : "") +
+          (r.expiryDate ? `(${r.expiryDate})` : "");
+        b.append(top, sub);
+        b.addEventListener("click", () => openForm({ kind: "edit", record: r }));
+        li.appendChild(b);
+        ul.appendChild(li);
+      }
+      wrap.appendChild(ul);
+    }
+  };
+
+  // ---------- csv ----------
+  $("csv-btn").addEventListener("click", () => {
+    const headers = ["記録ID","記録日時","棚卸し月","原料コード","品名","カテゴリ","数量","単位","半端量","期限切れ量","期限切れ日","保管場所","期限日","期限区分","入力者","備考"];
+    const esc = (v) => {
+      const s = String(v);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [headers.join(",")];
+    for (const r of records) {
+      lines.push([r.id, r.recordedAt, r.month, r.code, r.name, r.category, r.quantity, r.unit, r.partialQty || "", r.expiredQty || "", r.expiredDate || "", r.location, r.expiryDate, r.expiryKind, r.member, r.note].map(esc).join(","));
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `棚卸し記録_${nowStamp().recordedAt.replace(/[- :]/g, "")}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("CSVをダウンロードしました");
+  });
+
+  // ---------- init ----------
+  renderMembers();
+  renderCats();
+  renderItems();
+  renderRecords();
+})();
+</script>
