@@ -135,6 +135,13 @@
     background: none; border: 2px dashed var(--line); border-radius: 14px;
     color: var(--muted); font-weight: 600; font-size: 14px;
   }
+  .progress-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .progress-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .bulk-zero-btn {
+    margin-left: auto; background: var(--card); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 7px 12px; font-size: 12px; font-weight: 600;
+  }
 
   /* ---- records ---- */
   .rec-head { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
@@ -282,6 +289,10 @@
       </div>
       <input id="search" class="search" placeholder="🔍 品名・原料コードで検索">
       <div id="cat-row" class="cat-row"></div>
+      <div class="progress-row">
+        <span id="progress-label" class="progress-label"></span>
+        <button id="bulk-zero-btn" class="bulk-zero-btn" type="button">未入力品目を一括で0登録</button>
+      </div>
       <ul id="item-list" class="items"></ul>
       <p id="item-empty" class="empty hidden">該当する品目がありません</p>
       <p id="item-more" class="empty hidden"></p>
@@ -496,12 +507,31 @@
   };
 
   // ---------- item list ----------
+  // 入力済みマスタ品目の判定（masterId優先。旧データ/取込CSVは原料コード、コード無し品目は品名+カテゴリで補完）
+  const enteredSets = () => {
+    const ids = new Set(), codes = new Set(), nameCat = new Set();
+    for (const r of records) {
+      if (r.masterId) ids.add(r.masterId);
+      if (r.code) codes.add(r.code);
+      if (!r.masterId && !r.code) nameCat.add(r.name + "\u0000" + r.category);
+    }
+    return { ids, codes, nameCat };
+  };
+  const isEntered = (i, s) =>
+    s.ids.has(i.id) ||
+    (i.code !== "" && s.codes.has(i.code)) ||
+    (i.code === "" && s.nameCat.has(i.name + "\u0000" + i.cat));
+
   const renderItems = () => {
     const q = norm($("search").value);
-    const hits = MASTER.filter(
-      (i) =>
-        (category === "すべて" || i.cat === category) &&
-        (q === "" || norm(i.name).includes(q) || i.code.includes(q.trim())),
+    const s = enteredSets();
+    const scope = MASTER.filter((i) => category === "すべて" || i.cat === category);
+    const pending = scope.filter((i) => !isEntered(i, s));
+    $("progress-label").textContent =
+      `入力済み ${scope.length - pending.length}件 / 対象 ${scope.length}件`;
+    // 入力済みの品目はリストに出さない（二重入力防止。修正は「一覧」タブから）
+    const hits = pending.filter(
+      (i) => q === "" || norm(i.name).includes(q) || i.code.includes(q.trim()),
     );
     const list = $("item-list");
     list.replaceChildren();
@@ -522,13 +552,56 @@
       li.appendChild(b);
       list.appendChild(li);
     }
-    $("item-empty").classList.toggle("hidden", hits.length !== 0);
+    const empty = $("item-empty");
+    empty.classList.toggle("hidden", hits.length !== 0);
+    empty.textContent =
+      q === "" && scope.length > 0 && pending.length === 0
+        ? "このカテゴリはすべて入力済みです ✅（修正は「一覧」タブの記録をタップ）"
+        : "該当する品目がありません（入力済みの品目は表示されません）";
     const more = $("item-more");
     more.classList.toggle("hidden", hits.length <= 50);
     if (hits.length > 50) more.textContent = `他 ${hits.length - 50} 件 — 検索で絞り込んでください`;
   };
   $("search").addEventListener("input", renderItems);
   $("manual-btn").addEventListener("click", () => openForm({ kind: "manual" }));
+
+  // ---------- 未入力品目の一括0登録 ----------
+  $("bulk-zero-btn").addEventListener("click", () => {
+    if (!member) { toast("入力者を選択してください"); return; }
+    const s = enteredSets();
+    const targets = MASTER.filter(
+      (i) => (category === "すべて" || i.cat === category) && !isEntered(i, s),
+    );
+    if (targets.length === 0) { toast("未入力の品目はありません"); return; }
+    if (!window.confirm(`未入力の品目${targets.length}件を数量0で登録します。本当に実行しますか？`)) return;
+    const stamp = nowStamp();
+    for (const item of targets) {
+      records.push({
+        id: uuid(),
+        recordedAt: stamp.recordedAt,
+        month: stamp.month,
+        masterId: item.id,
+        code: item.code,
+        name: item.name,
+        category: item.cat,
+        quantity: 0,
+        unit: item.units[0],
+        partialQty: 0,
+        expiredQty: 0,
+        expiredDate: "",
+        location: "",
+        expiryDate: "",
+        expiryKind: "",
+        member,
+        note: "",
+        checkStatus: "1回目完了",
+      });
+    }
+    saveRecords();
+    renderItems();
+    renderRecords();
+    toast(`未入力${targets.length}件を数量0で登録しました`);
+  });
 
   // ---------- form sheet ----------
   const openForm = (mode) => {
@@ -685,6 +758,7 @@
       id: rec ? rec.id : uuid(),
       recordedAt: rec ? rec.recordedAt : stamp.recordedAt,
       month: rec ? rec.month : stamp.month,
+      masterId: rec ? rec.masterId || "" : item ? item.id : "",
       code: rec ? rec.code : item ? item.code : "",
       name,
       category: item ? item.cat : $("f-cat").value,
@@ -698,6 +772,7 @@
       expiryKind: $("f-ekind").value,
       member: mem,
       note: $("f-note").value.trim(),
+      checkStatus: rec ? rec.checkStatus || "1回目完了" : "1回目完了",
     };
     if (rec) {
       records = records.map((r) => (r.id === rec.id ? saved : r));
@@ -722,11 +797,18 @@
     records = records.filter((r) => r.id !== rec.id);
     saveRecords();
     closeForm();
+    renderItems();
     renderRecords();
     toast("削除しました");
   });
 
   // ---------- records ----------
+  // 原料コード順（空コードは最後）→ 品名順
+  const codeOrder = (a, b) => {
+    if (!a.code !== !b.code) return a.code ? -1 : 1;
+    if (a.code !== b.code) return a.code.localeCompare(b.code, "ja", { numeric: true });
+    return a.name.localeCompare(b.name, "ja");
+  };
   const renderRecords = () => {
     $("rec-count").textContent = String(records.length);
     $("rec-empty").classList.toggle("hidden", records.length !== 0);
@@ -738,6 +820,7 @@
     }
     const wrap = $("rec-groups");
     wrap.replaceChildren();
+    for (const list of groups.values()) list.sort(codeOrder);
     for (const [month, list] of [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]))) {
       const h = document.createElement("h2");
       h.className = "month-h";
@@ -782,14 +865,14 @@
 
   // ---------- csv ----------
   $("csv-btn").addEventListener("click", () => {
-    const headers = ["記録ID","記録日時","棚卸し月","原料コード","品名","カテゴリ","数量","単位","半端量","期限切れ量","期限切れ日","保管場所","期限日","期限区分","入力者","備考"];
+    const headers = ["記録ID","記録日時","棚卸し月","品目ID","原料コード","品名","カテゴリ","数量","単位","半端量","期限切れ量","期限切れ日","保管場所","期限日","期限区分","入力者","チェック状態","備考"];
     const esc = (v) => {
       const s = String(v);
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(",")];
-    for (const r of records) {
-      lines.push([r.id, r.recordedAt, r.month, r.code, r.name, r.category, r.quantity, r.unit, r.partialQty || "", r.expiredQty || "", r.expiredDate || "", r.location, r.expiryDate, r.expiryKind, r.member, r.note].map(esc).join(","));
+    for (const r of [...records].sort(codeOrder)) {
+      lines.push([r.id, r.recordedAt, r.month, r.masterId || "", r.code, r.name, r.category, r.quantity, r.unit, r.partialQty || "", r.expiredQty || "", r.expiredDate || "", r.location, r.expiryDate, r.expiryKind, r.member, r.checkStatus || "", r.note].map(esc).join(","));
     }
     const blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -805,6 +888,7 @@
         if (window.confirm(`CSVを出力しました。\n出力後にデータを削除しますか？（記録${count}件）\n\n※削除しても、出力したCSVを「CSV取込」すれば復元できます`)) {
           records = [];
           saveRecords();
+          renderItems();
           renderRecords();
           toast("記録を削除しました（0件）");
         }
@@ -873,6 +957,7 @@
           id: get(r, "記録ID") || uuid(),
           recordedAt,
           month: get(r, "棚卸し月") || recordedAt.slice(0, 7),
+          masterId: get(r, "品目ID"),
           code: get(r, "原料コード"),
           name,
           category: get(r, "カテゴリ"),
@@ -886,11 +971,13 @@
           expiryKind: get(r, "期限区分"),
           member: get(r, "入力者"),
           note: get(r, "備考"),
+          checkStatus: get(r, "チェック状態") || "1回目完了",
         };
         const idx = records.findIndex((x) => x.id === rec.id);
         if (idx >= 0) { records[idx] = rec; updated++; } else { records.push(rec); added++; }
       }
       saveRecords();
+      renderItems();
       renderRecords();
       toast(`取込完了: 追加${added}件・更新${updated}件${skipped ? `・スキップ${skipped}件` : ""}`);
     } catch (err) {
