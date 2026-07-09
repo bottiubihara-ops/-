@@ -798,6 +798,18 @@
     a.click();
     URL.revokeObjectURL(a.href);
     toast("CSVをダウンロードしました");
+    // 出力後に端末内データのリセットを提案（出力したCSVを「CSV取込」すれば復元できる）
+    if (records.length > 0) {
+      const count = records.length;
+      setTimeout(() => {
+        if (window.confirm(`CSVを出力しました。\n出力後にデータを削除しますか？（記録${count}件）\n\n※削除しても、出力したCSVを「CSV取込」すれば復元できます`)) {
+          records = [];
+          saveRecords();
+          renderRecords();
+          toast("記録を削除しました（0件）");
+        }
+      }, 400);
+    }
   });
 
   // ---------- csv import ----------
