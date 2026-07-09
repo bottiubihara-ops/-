@@ -6,6 +6,45 @@ import Nav from "./Nav";
 import RecordForm, { type FormMode } from "./RecordForm";
 import { api, MEMBER_STORAGE_KEY } from "./client";
 
+/** 一覧の下部情報に使う小さなラベルチップ */
+function Chip({
+  children,
+  tone = "gray",
+}: {
+  children: React.ReactNode;
+  tone?: "gray" | "amber" | "green";
+}) {
+  const tones = {
+    gray: "bg-gray-100 text-gray-500",
+    amber: "bg-amber-100 text-amber-700",
+    green: "bg-emerald-100 text-emerald-700",
+  } as const;
+  return (
+    <span
+      className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${tones[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** チェック状態を色分けして表示するチップ */
+function StatusChip({ status }: { status: string }) {
+  const map: Record<string, { text: string; cls: string }> = {
+    "1回目完了": { text: "1回目完了", cls: "bg-blue-100 text-blue-700" },
+    "ダブルチェック完了": {
+      text: "✓✓ ダブル完了",
+      cls: "bg-emerald-600 text-white",
+    },
+  };
+  const s = map[status] ?? { text: "未確認", cls: "bg-gray-200 text-gray-600" };
+  return (
+    <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${s.cls}`}>
+      {s.text}
+    </span>
+  );
+}
+
 export default function RecordsScreen() {
   const [records, setRecords] = useState<InventoryRecord[]>([]);
   const [members, setMembers] = useState<string[]>([]);
@@ -58,6 +97,19 @@ export default function RecordsScreen() {
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
   }, [records]);
 
+  /** チェック状態ごとの件数（進捗サマリ用） */
+  const progress = useMemo(() => {
+    let unchecked = 0;
+    let first = 0;
+    let done = 0;
+    for (const r of records) {
+      if (r.checkStatus === "ダブルチェック完了") done += 1;
+      else if (r.checkStatus === "1回目完了") first += 1;
+      else unchecked += 1;
+    }
+    return { unchecked, first, done };
+  }, [records]);
+
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2500);
@@ -98,6 +150,23 @@ export default function RecordsScreen() {
           </a>
         </div>
 
+        {records.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-white p-2 text-center shadow-sm">
+              <p className="text-lg font-bold text-gray-500">{progress.unchecked}</p>
+              <p className="text-[11px] font-semibold text-gray-400">未確認</p>
+            </div>
+            <div className="rounded-xl bg-white p-2 text-center shadow-sm">
+              <p className="text-lg font-bold text-blue-600">{progress.first}</p>
+              <p className="text-[11px] font-semibold text-gray-400">1回目完了</p>
+            </div>
+            <div className="rounded-xl bg-white p-2 text-center shadow-sm">
+              <p className="text-lg font-bold text-emerald-600">{progress.done}</p>
+              <p className="text-[11px] font-semibold text-gray-400">ダブル済</p>
+            </div>
+          </div>
+        )}
+
         {loading && <p className="p-6 text-center text-gray-400">読み込み中...</p>}
         {loadError && (
           <p className="mt-3 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">
@@ -132,16 +201,34 @@ export default function RecordsScreen() {
                         </span>
                       </p>
                     </div>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {r.recordedAt}　{r.member}
-                      {r.partialQty ? `　(内 半端${r.partialQty}${r.unit})` : ""}
-                      {r.expiredQty
-                        ? `　⚠期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}`
-                        : ""}
-                      {r.location ? `　📍${r.location}` : ""}
-                      {r.expiryKind ? `　⚠${r.expiryKind}` : ""}
-                      {r.expiryDate ? `(${r.expiryDate})` : ""}
-                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <StatusChip status={r.checkStatus} />
+                      <Chip>🕐 {r.recordedAt}</Chip>
+                      <Chip>👤 {r.member}</Chip>
+                      {r.partialQty > 0 && (
+                        <Chip>
+                          半端 {r.partialQty}
+                          {r.unit}
+                        </Chip>
+                      )}
+                      {r.expiredQty > 0 && (
+                        <Chip tone="amber">
+                          ⚠ 期限切れ {r.expiredQty}
+                          {r.unit}
+                          {r.expiredDate ? `・${r.expiredDate}` : ""}
+                        </Chip>
+                      )}
+                      {r.location && <Chip>📍 {r.location}</Chip>}
+                      {r.expiryKind && (
+                        <Chip tone="amber">
+                          ⏳ {r.expiryKind}
+                          {r.expiryDate ? `・${r.expiryDate}` : ""}
+                        </Chip>
+                      )}
+                      {r.checkStatus === "ダブルチェック完了" && r.checker && (
+                        <Chip tone="green">✓✓ {r.checker}</Chip>
+                      )}
+                    </div>
                   </button>
                 </li>
               ))}

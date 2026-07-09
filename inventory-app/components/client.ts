@@ -33,3 +33,18 @@ export function normalizeForSearch(s: string): string {
 }
 
 export const MEMBER_STORAGE_KEY = "inventory-app-member";
+
+/** 現在の日本時間を "YYYY-MM-DD HH:mm" で返す（ダブルチェック日時などに使用） */
+export function jstStamp(): string {
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}

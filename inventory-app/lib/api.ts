@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthedRequest } from "@/lib/auth";
-import type { RecordInput } from "@/lib/types";
+import { CHECK_STATUSES, type CheckStatus, type RecordInput } from "@/lib/types";
 
 /** 認証チェック込みでAPIハンドラを実行し、例外を500 JSONへ変換する */
 export async function withAuth(
@@ -43,6 +43,10 @@ export function parseRecordInput(body: unknown): RecordInput | string {
   if (expiredQty < 0) {
     return "期限切れ量には0以上の数値を入力してください";
   }
+  const rawStatus = text(b.checkStatus);
+  const checkStatus = (
+    CHECK_STATUSES.includes(rawStatus as CheckStatus) ? rawStatus : ""
+  ) as CheckStatus;
   return {
     code: text(b.code),
     name,
@@ -56,6 +60,9 @@ export function parseRecordInput(body: unknown): RecordInput | string {
     expiryDate: text(b.expiryDate),
     expiryKind: text(b.expiryKind),
     member,
+    checkStatus,
+    checker: text(b.checker),
+    checkedAt: text(b.checkedAt),
     note: text(b.note),
   };
 }

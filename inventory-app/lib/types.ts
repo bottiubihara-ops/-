@@ -40,8 +40,14 @@ export interface InventoryRecord {
   expiryDate: string;
   /** 期限区分（任意: 来月期限 / 再来月期限 / 期限切れ） */
   expiryKind: string;
-  /** 入力者 */
+  /** 入力者（1回目のカウント担当） */
   member: string;
+  /** チェック状態（""=未確認 / "1回目完了" / "ダブルチェック完了"） */
+  checkStatus: string;
+  /** ダブルチェック実施者（ダブルチェック完了時に記録） */
+  checker: string;
+  /** ダブルチェック完了日時 "YYYY-MM-DD HH:mm" */
+  checkedAt: string;
   note: string;
 }
 
@@ -67,3 +73,7 @@ export function expiryKindFor(dateStr: string, now: Date = new Date()): string {
 }
 
 export const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"] as const;
+
+/** チェック状態（空文字＝未確認）。ダブルチェックまでの2段階運用 */
+export const CHECK_STATUSES = ["", "1回目完了", "ダブルチェック完了"] as const;
+export type CheckStatus = (typeof CHECK_STATUSES)[number];

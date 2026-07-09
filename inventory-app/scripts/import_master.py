@@ -164,7 +164,8 @@ def build_workbook(items: list[dict], out_path: str) -> None:
     ws = wb.create_sheet('棚卸し記録')
     record_headers = ['記録ID', '記録日時', '棚卸し月', '原料コード', '品名', 'カテゴリ',
                       '数量', '単位', '半端量', '期限切れ量', '期限切れ日',
-                      '保管場所', '期限日', '期限区分', '入力者', '備考']
+                      '保管場所', '期限日', '期限区分', '入力者',
+                      'チェック状態', 'ダブルチェック者', 'ダブルチェック日時', '備考']
     ws.append(record_headers)
     ref = f'A1:{get_column_letter(len(record_headers))}2'  # テーブルは最低1データ行が必要なため空行を含める
     table = Table(displayName='RecordTable', ref=ref)

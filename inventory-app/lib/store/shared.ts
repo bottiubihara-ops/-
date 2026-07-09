@@ -17,6 +17,9 @@ export const RECORD_HEADERS = [
   "期限日",
   "期限区分",
   "入力者",
+  "チェック状態",
+  "ダブルチェック者",
+  "ダブルチェック日時",
   "備考",
 ] as const;
 
@@ -87,7 +90,10 @@ export function rowToRecord(vals: unknown[]): InventoryRecord | null {
     expiryDate: asText(vals[12]),
     expiryKind: asText(vals[13]),
     member: asText(vals[14]),
-    note: asText(vals[15]),
+    checkStatus: asText(vals[15]),
+    checker: asText(vals[16]),
+    checkedAt: asText(vals[17]),
+    note: asText(vals[18]),
   };
 }
 
@@ -109,6 +115,9 @@ export function recordToRow(r: InventoryRecord): (string | number)[] {
     r.expiryDate,
     r.expiryKind,
     r.member,
+    r.checkStatus,
+    r.checker,
+    r.checkedAt,
     r.note,
   ];
 }
@@ -154,6 +163,9 @@ export function buildRecord(
     expiryDate: input.expiryDate ?? "",
     expiryKind: input.expiryKind ?? "",
     member: input.member,
+    checkStatus: input.checkStatus ?? "",
+    checker: input.checker ?? "",
+    checkedAt: input.checkedAt ?? "",
     note: input.note ?? "",
   };
 }
