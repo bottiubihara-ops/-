@@ -350,14 +350,6 @@
         </div>
       </div>
     </div>
-    <div id="partial-box" class="partial-box hidden">
-      <span class="label">半端量（任意・上の数量のうち端数分）</span>
-      <div class="qty-row" style="margin-top:5px">
-        <input id="f-partial" class="partial-input" inputmode="decimal" placeholder="0">
-        <span id="partial-unit" class="unit-fixed" style="width:auto"></span>
-        <span class="total-label" style="color:var(--faint);font-weight:400">数量のうち半端分のメモ</span>
-      </div>
-    </div>
     <div id="expired-box" class="partial-box hidden">
       <span class="label">⚠ 期限切れ分（任意・上の数量には含めない）</span>
       <div class="qty-row" style="margin-top:5px">
@@ -368,8 +360,8 @@
     </div>
     <div class="f-row">
       <div class="f-col">
-        <span class="label">保管場所（任意）</span>
-        <input id="f-loc" class="field" placeholder="例: 2F資材庫">
+        <span class="label">期限日（任意）</span>
+        <input id="f-edate" class="field" type="date">
       </div>
       <div class="f-col narrow">
         <span class="label">期限区分（自動・変更可）</span>
@@ -381,11 +373,14 @@
         </select>
       </div>
     </div>
-    <div class="f-row">
-      <div class="f-col">
-        <span class="label">期限日（任意）</span>
-        <input id="f-edate" class="field" type="date">
+    <div id="expiryqty-box" class="partial-box hidden">
+      <span id="expiryqty-label" class="label">⏳ 来月期限で切れる量（任意・数量に含まれる分）</span>
+      <div class="qty-row" style="margin-top:5px">
+        <input id="f-expiryqty" class="partial-input" inputmode="decimal" placeholder="0">
+        <span id="expiryqty-unit" class="unit-fixed" style="width:auto"></span>
       </div>
+    </div>
+    <div class="f-row">
       <div class="f-col">
         <span class="label">入力者 *</span>
         <select id="f-member" class="field"></select>
@@ -586,12 +581,11 @@
         category: item.cat,
         quantity: 0,
         unit: item.units[0],
-        partialQty: 0,
         expiredQty: 0,
         expiredDate: "",
-        location: "",
         expiryDate: "",
         expiryKind: "",
+        expiryQty: 0,
         member,
         note: "",
         checkStatus: "1回目完了",
@@ -634,7 +628,7 @@
 
     // 数量は半端込みの合計をそのまま入力・表示（期限切れ分は含めない）
     $("f-qty").value = rec ? String(rec.quantity) : "";
-    $("f-partial").value = rec && rec.partialQty ? String(rec.partialQty) : "";
+    $("f-expiryqty").value = rec && rec.expiryQty ? String(rec.expiryQty) : "";
     $("f-expqty").value = rec && rec.expiredQty ? String(rec.expiredQty) : "";
     $("f-expdate").value = rec ? rec.expiredDate || "" : "";
     const units = item ? item.units : null;
@@ -661,12 +655,12 @@
     if (item && !multi) $("unit-fixed").textContent = unit;
     if (!item) $("f-unit").value = unit;
     getUnit = () => (item ? unit : $("f-unit").value.trim() || "個");
-    setPartialBox(item ? item.cat : rec ? rec.category : $("f-cat").value);
+    setCategoryBoxes(item ? item.cat : rec ? rec.category : $("f-cat").value);
 
     // その他フィールド
-    $("f-loc").value = rec ? rec.location : "";
     $("f-edate").value = rec ? rec.expiryDate : "";
     $("f-ekind").value = rec ? rec.expiryKind : "";
+    updateExpiryQtyBox();
     $("f-note").value = rec ? rec.note : "";
     const memSel = $("f-member");
     memSel.replaceChildren();
@@ -689,21 +683,29 @@
   };
   let getUnit = () => "個";
 
-  // 半端量（副原料のみ）・期限切れ別枠（原料豆/副原料）の表示制御と単位ラベル
-  const partialVisible = () => !$("partial-box").classList.contains("hidden");
+  // 期限切れ別枠（原料豆/副原料）の表示制御と単位ラベル
   const expiredVisible = () => !$("expired-box").classList.contains("hidden");
   const updateUnits = () => {
     const u = getUnit();
-    $("partial-unit").textContent = u;
     $("expired-unit").textContent = u;
+    $("expiryqty-unit").textContent = u;
   };
-  const setPartialBox = (cat) => {
-    $("partial-box").classList.toggle("hidden", cat !== "副原料");
+  const setCategoryBoxes = (cat) => {
     $("expired-box").classList.toggle("hidden", cat !== "副原料" && cat !== "原料豆");
     updateUnits();
   };
+  // 期限区分が来月/再来月のときだけ「その期限で切れる量」入力を出す
+  const expiryQtyVisible = () => !$("expiryqty-box").classList.contains("hidden");
+  const updateExpiryQtyBox = () => {
+    const kind = $("f-ekind").value;
+    const show = kind === "来月期限" || kind === "再来月期限";
+    $("expiryqty-box").classList.toggle("hidden", !show);
+    if (show) $("expiryqty-label").textContent = `⏳ ${kind}で切れる量（任意・数量に含まれる分）`;
+    updateUnits();
+  };
+  $("f-ekind").addEventListener("change", updateExpiryQtyBox);
   $("f-unit").addEventListener("input", updateUnits);
-  $("f-cat").addEventListener("change", () => setPartialBox($("f-cat").value));
+  $("f-cat").addEventListener("change", () => setCategoryBoxes($("f-cat").value));
 
   // 期限日 → 期限区分の自動判定（月末棚卸し基準・手動変更可）
   const expiryKindFor = (dateStr) => {
@@ -718,6 +720,7 @@
   };
   $("f-edate").addEventListener("change", () => {
     $("f-ekind").value = expiryKindFor($("f-edate").value);
+    updateExpiryQtyBox();
   });
 
   const closeForm = () => { form = null; $("sheet-overlay").classList.add("hidden"); };
@@ -748,10 +751,11 @@
     if (!name) return showFormError("品名を入力してください");
     if (!mem) return showFormError("入力者を選択してください");
     if (!Number.isFinite(q) || q < 0) return showFormError("数量には0以上の数値を入力してください");
-    const partial = partialVisible() ? parseFloat($("f-partial").value) || 0 : 0;
-    if (partial < 0 || partial > q) return showFormError("半端量は0以上・数量（合計）以下で入力してください");
     const expired = expiredVisible() ? parseFloat($("f-expqty").value) || 0 : 0;
     if (expired < 0) return showFormError("期限切れ量には0以上の数値を入力してください");
+    const expiryQty = expiryQtyVisible() ? parseFloat($("f-expiryqty").value) || 0 : 0;
+    if (expiryQty < 0 || expiryQty > q)
+      return showFormError("期限で切れる量は0以上・数量以下で入力してください");
 
     const stamp = nowStamp();
     const saved = {
@@ -764,12 +768,11 @@
       category: item ? item.cat : $("f-cat").value,
       quantity: q,
       unit: getUnit(),
-      partialQty: partial,
       expiredQty: expired,
       expiredDate: expiredVisible() ? $("f-expdate").value : "",
-      location: $("f-loc").value.trim(),
       expiryDate: $("f-edate").value,
       expiryKind: $("f-ekind").value,
+      expiryQty,
       member: mem,
       note: $("f-note").value.trim(),
       checkStatus: rec ? rec.checkStatus || "1回目完了" : "1回目完了",
@@ -849,10 +852,8 @@
         sub.className = "rec-sub";
         sub.textContent =
           `${r.recordedAt}　${r.member}` +
-          (r.partialQty ? `　(内 半端${r.partialQty}${r.unit})` : "") +
           (r.expiredQty ? `　⚠期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}` : "") +
-          (r.location ? `　📍${r.location}` : "") +
-          (r.expiryKind ? `　⚠${r.expiryKind}` : "") +
+          (r.expiryKind ? `　⏳${r.expiryKind}${r.expiryQty ? ` ${r.expiryQty}${r.unit}` : ""}` : "") +
           (r.expiryDate ? `(${r.expiryDate})` : "");
         b.append(top, sub);
         b.addEventListener("click", () => openForm({ kind: "edit", record: r }));
@@ -865,14 +866,14 @@
 
   // ---------- csv ----------
   $("csv-btn").addEventListener("click", () => {
-    const headers = ["記録ID","記録日時","棚卸し月","品目ID","原料コード","品名","カテゴリ","数量","単位","半端量","期限切れ量","期限切れ日","保管場所","期限日","期限区分","入力者","チェック状態","備考"];
+    const headers = ["記録ID","記録日時","棚卸し月","品目ID","原料コード","品名","カテゴリ","数量","単位","期限切れ量","期限切れ日","期限日","期限区分","期限量","入力者","チェック状態","備考"];
     const esc = (v) => {
       const s = String(v);
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(",")];
     for (const r of [...records].sort(codeOrder)) {
-      lines.push([r.id, r.recordedAt, r.month, r.masterId || "", r.code, r.name, r.category, r.quantity, r.unit, r.partialQty || "", r.expiredQty || "", r.expiredDate || "", r.location, r.expiryDate, r.expiryKind, r.member, r.checkStatus || "", r.note].map(esc).join(","));
+      lines.push([r.id, r.recordedAt, r.month, r.masterId || "", r.code, r.name, r.category, r.quantity, r.unit, r.expiredQty || "", r.expiredDate || "", r.expiryDate, r.expiryKind, r.expiryQty || "", r.member, r.checkStatus || "", r.note].map(esc).join(","));
     }
     const blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -963,12 +964,11 @@
           category: get(r, "カテゴリ"),
           quantity: numOf(get(r, "数量")),
           unit: get(r, "単位"),
-          partialQty: numOf(get(r, "半端量")),
           expiredQty: numOf(get(r, "期限切れ量")),
           expiredDate: get(r, "期限切れ日") ? normDate(get(r, "期限切れ日")) : "",
-          location: get(r, "保管場所"),
           expiryDate: get(r, "期限日") ? normDate(get(r, "期限日")) : "",
           expiryKind: get(r, "期限区分"),
+          expiryQty: numOf(get(r, "期限量")),
           member: get(r, "入力者"),
           note: get(r, "備考"),
           checkStatus: get(r, "チェック状態") || "1回目完了",
