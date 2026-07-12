@@ -286,6 +286,10 @@
       <div class="card member-card">
         <span class="label">入力者（だれが数えていますか？）</span>
         <div id="member-row" class="member-row"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+          <span class="label" style="white-space:nowrap">棚卸し月（期限判定の基準）</span>
+          <select id="base-month" class="field" style="margin-top:0;flex:1"></select>
+        </div>
       </div>
       <input id="search" class="search" placeholder="🔍 品名・原料コードで検索">
       <div id="cat-row" class="cat-row"></div>
@@ -407,7 +411,7 @@
   const MASTER = JSON.parse(document.getElementById("master-data").textContent);
   const MEMBERS = ["入力者A", "入力者B", "入力者C"];
   const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"];
-  const LS = { auth: "demo-inv-auth", member: "demo-inv-member", records: "demo-inv-records" };
+  const LS = { auth: "demo-inv-auth", member: "demo-inv-member", records: "demo-inv-records", baseMonth: "demo-inv-basemonth" };
   const $ = (id) => document.getElementById(id);
 
   // localStorageが使えない環境（iOSのファイルプレビュー等）ではメモリ保存にフォールバック
@@ -574,7 +578,7 @@
       records.push({
         id: uuid(),
         recordedAt: stamp.recordedAt,
-        month: stamp.month,
+        month: baseMonth,
         masterId: item.id,
         code: item.code,
         name: item.name,
@@ -707,12 +711,43 @@
   $("f-unit").addEventListener("input", updateUnits);
   $("f-cat").addEventListener("change", () => setCategoryBoxes($("f-cat").value));
 
-  // 期限日 → 期限区分の自動判定（月末棚卸し基準・手動変更可）
+  // ---------- 棚卸し月（期限判定の基準） ----------
+  // 月末棚卸しの入力が月初にズレ込んでも判定が変わらないよう、基準月を明示的に持つ。
+  // 月初5日までは前月を既定にする。選択は端末に記憶。
+  const monthStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const baseMonthOptions = () => {
+    const now = new Date();
+    return [monthStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)), monthStr(now)];
+  };
+  let baseMonth = store.get(LS.baseMonth) || "";
+  const initBaseMonth = () => {
+    const opts = baseMonthOptions();
+    if (!opts.includes(baseMonth)) {
+      baseMonth = new Date().getDate() <= 5 ? opts[0] : opts[1];
+    }
+    const sel = $("base-month");
+    sel.replaceChildren();
+    for (const m of opts) {
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = m + (m === opts[0] ? "（前月）" : "（今月）");
+      sel.appendChild(o);
+    }
+    sel.value = baseMonth;
+  };
+  $("base-month").addEventListener("change", () => {
+    baseMonth = $("base-month").value;
+    store.set(LS.baseMonth, baseMonth);
+    toast(`棚卸し月を ${baseMonth} に設定しました`);
+  });
+
+  // 期限日 → 期限区分の自動判定（棚卸し月基準・手動変更可）
   const expiryKindFor = (dateStr) => {
     const m = /^(\d{4})-(\d{2})/.exec(dateStr || "");
     if (!m) return "";
-    const now = new Date();
-    const diff = Number(m[1]) * 12 + Number(m[2]) - 1 - (now.getFullYear() * 12 + now.getMonth());
+    const bm = /^(\d{4})-(\d{2})/.exec(baseMonth);
+    const base = Number(bm[1]) * 12 + Number(bm[2]) - 1;
+    const diff = Number(m[1]) * 12 + Number(m[2]) - 1 - base;
     if (diff <= 0) return "期限切れ";
     if (diff === 1) return "来月期限";
     if (diff === 2) return "再来月期限";
@@ -761,7 +796,7 @@
     const saved = {
       id: rec ? rec.id : uuid(),
       recordedAt: rec ? rec.recordedAt : stamp.recordedAt,
-      month: rec ? rec.month : stamp.month,
+      month: rec ? rec.month : baseMonth,
       masterId: rec ? rec.masterId || "" : item ? item.id : "",
       code: rec ? rec.code : item ? item.code : "",
       name,
@@ -957,7 +992,7 @@
         const rec = {
           id: get(r, "記録ID") || uuid(),
           recordedAt,
-          month: get(r, "棚卸し月") || recordedAt.slice(0, 7),
+          month: get(r, "棚卸し月") || baseMonth,
           masterId: get(r, "品目ID"),
           code: get(r, "原料コード"),
           name,
@@ -986,6 +1021,7 @@
   });
 
   // ---------- init ----------
+  initBaseMonth();
   renderMembers();
   renderCats();
   renderItems();
