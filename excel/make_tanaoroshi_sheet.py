@@ -9,12 +9,11 @@
   原料豆    : 38品目（原料コード順）
   副原料    : 87品目（原料コード順）
   フィルター: 14品目（数量は箱・本の2列）
-  設定      : 入力者リスト（ドロップダウンの元）
 
 特徴:
   - 期限日を入れると期限区分（期限切れ/来月期限/再来月期限）を数式で自動判定
     （基準はサマリ!B2の棚卸し月。月初入力のズレ問題に対応）
-  - 入力者・チェック状態はドロップダウン
+  - チェック状態はドロップダウン（入力者列は無し。編集履歴はSharePointの版管理で追える）
   - 未入力の数量セルは黄色、期限切れ行は赤系の条件付き書式
 """
 import sys
@@ -72,12 +71,6 @@ def style_header(ws, row, cols):
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
-def add_member_dv(ws, col_letter, last_row):
-    dv = DataValidation(type="list", formula1="=設定!$A$2:$A$11", allow_blank=True, showErrorMessage=False)
-    ws.add_data_validation(dv)
-    dv.add(f"{col_letter}{DATA_START}:{col_letter}{last_row}")
-
-
 def add_check_dv(ws, col_letter, last_row):
     dv = DataValidation(type="list", formula1='"1回目完了,ダブルチェック完了"', allow_blank=True, showErrorMessage=False)
     ws.add_data_validation(dv)
@@ -94,8 +87,8 @@ def build_ingredient_sheet(wb, name, items):
     ws["D1"].font = Font(bold=True, color="2B5CB8")
     ws["A2"] = "①数量には期限切れ分を含めない ②期限日を入れると期限区分は自動判定（手動で上書き可） ③行の追加・削除・並び替えはしない"
     ws["A2"].font = NOTE_FONT
-    headers = ["原料コード", "品名", "数量", "単位", "期限切れ量", "期限切れ日",
-               "期限日", "期限区分(自動)", "期限量", "入力者", "チェック", "備考"]
+    headers = ["原料コード", "品名", "数量", "単位", "期限日", "期限区分(自動)",
+               "期限量", "期限切れ量", "期限切れ日", "チェック", "備考"]
     for i, h in enumerate(headers, start=1):
         ws.cell(row=3, column=i, value=h)
     style_header(ws, 3, len(headers))
@@ -104,25 +97,24 @@ def build_ingredient_sheet(wb, name, items):
         ws.cell(row=r, column=2, value=it["name"])
         ws.cell(row=r, column=4, value="kg")
         # 期限区分: 棚卸し月(サマリ!B2)基準で自動判定
-        ws.cell(row=r, column=8, value=(
-            f'=IF($G{r}="","",IF(EDATE(サマリ!$B$2,1)>$G{r},"期限切れ",'
-            f'IF(EDATE(サマリ!$B$2,2)>$G{r},"来月期限",'
-            f'IF(EDATE(サマリ!$B$2,3)>$G{r},"再来月期限",""))))'
+        ws.cell(row=r, column=6, value=(
+            f'=IF($E{r}="","",IF(EDATE(サマリ!$B$2,1)>$E{r},"期限切れ",'
+            f'IF(EDATE(サマリ!$B$2,2)>$E{r},"来月期限",'
+            f'IF(EDATE(サマリ!$B$2,3)>$E{r},"再来月期限",""))))'
         ))
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=r, column=c)
             cell.border = BORDER
-            if c in (6, 7):
+            if c in (5, 9):
                 cell.number_format = "yyyy-mm-dd"
-    widths = [12, 34, 9, 6, 10, 12, 12, 12, 9, 10, 14, 14]
+    widths = [12, 34, 9, 6, 12, 12, 9, 10, 12, 14, 14]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "C4"
-    add_member_dv(ws, "J", last)
-    add_check_dv(ws, "K", last)
-    rng = f"A{DATA_START}:L{last}"
-    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'$H{DATA_START}="期限切れ"'], fill=RED))
-    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'$H{DATA_START}="来月期限"'], fill=ORANGE))
+    add_check_dv(ws, "J", last)
+    rng = f"A{DATA_START}:K{last}"
+    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'$F{DATA_START}="期限切れ"'], fill=RED))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=[f'$F{DATA_START}="来月期限"'], fill=ORANGE))
     ws.conditional_formatting.add(
         f"C{DATA_START}:C{last}",
         FormulaRule(formula=[f'ISBLANK($C{DATA_START})'], fill=YELLOW),
@@ -140,7 +132,7 @@ def build_filter_sheet(wb, items):
     ws["D1"].font = Font(bold=True, color="2B5CB8")
     ws["A2"] = "①箱・本それぞれの数を記入（無ければ0） ②行の追加・削除・並び替えはしない"
     ws["A2"].font = NOTE_FONT
-    headers = ["原料コード", "品名", "型番", "数量(箱)", "数量(本)", "入力者", "チェック", "備考"]
+    headers = ["原料コード", "品名", "型番", "数量(箱)", "数量(本)", "チェック", "備考"]
     for i, h in enumerate(headers, start=1):
         ws.cell(row=3, column=i, value=h)
     style_header(ws, 3, len(headers))
@@ -150,12 +142,11 @@ def build_filter_sheet(wb, items):
         ws.cell(row=r, column=3, value=it["note"].replace("型番: ", ""))
         for c in range(1, len(headers) + 1):
             ws.cell(row=r, column=c).border = BORDER
-    widths = [12, 30, 22, 9, 9, 10, 14, 14]
+    widths = [12, 30, 22, 9, 9, 14, 14]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "C4"
-    add_member_dv(ws, "F", last)
-    add_check_dv(ws, "G", last)
+    add_check_dv(ws, "F", last)
     ws.conditional_formatting.add(
         f"D{DATA_START}:E{last}",
         FormulaRule(formula=[f'AND(ISBLANK($D{DATA_START}),ISBLANK($E{DATA_START}))'], fill=YELLOW),
@@ -204,7 +195,7 @@ def build_summary(wb, ranges):
         "1. 各シートを開き、上から順に「数量」を記入する（在庫が無ければ 0）",
         "2. 期限切れ分は数量に含めず「期限切れ量」「期限切れ日」に記入",
         "3. 期限日を入れると「期限区分」が自動で入る（来月/再来月のときは「期限量」も記入）",
-        "4. 入力したら「入力者」を選び、確認が済んだら「チェック」を選ぶ",
+        "4. 確認が済んだら「チェック」を選ぶ（誰が編集したかはSharePointの版履歴で確認できる）",
         "5. 未入力の数量セルは黄色で表示される。全員の入力状況はこのサマリで確認",
         "※ 行の追加・削除・並び替えはしないでください（数式とカウントが狂います）",
         "※ 複数人で同時に開いて編集してOK（自動保存・自動同期）",
@@ -215,17 +206,6 @@ def build_summary(wb, ranges):
     for col, w in zip("ABCDEF", [14, 12, 10, 10, 12, 12]):
         ws.column_dimensions[col].width = w
     ws.column_dimensions["C"].width = 60 if False else 12
-
-
-def build_settings(wb):
-    ws = wb.create_sheet("設定")
-    ws["A1"] = "入力者リスト（自由に書き換えOK・最大10人）"
-    ws["A1"].font = HEAD_FONT
-    for i, name in enumerate(["入力者A", "入力者B", "入力者C"], start=2):
-        ws.cell(row=i, column=1, value=name)
-    for r in range(2, 12):
-        ws.cell(row=r, column=1).border = BORDER
-    ws.column_dimensions["A"].width = 24
 
 
 def main():
@@ -239,15 +219,14 @@ def main():
     last_b = build_ingredient_sheet(wb, "原料豆", beans)
     last_s = build_ingredient_sheet(wb, "副原料", subs)
     last_f = build_filter_sheet(wb, filters)
-    build_settings(wb)
     build_summary(wb, [
-        ("原料豆", last_b, f"=COUNT(原料豆!$C${DATA_START}:$C${last_b})", "K"),
-        ("副原料", last_s, f"=COUNT(副原料!$C${DATA_START}:$C${last_s})", "K"),
+        ("原料豆", last_b, f"=COUNT(原料豆!$C${DATA_START}:$C${last_b})", "J"),
+        ("副原料", last_s, f"=COUNT(副原料!$C${DATA_START}:$C${last_s})", "J"),
         ("フィルター", last_f,
          # 箱・本のどちらかが数値なら入力済み（両方入力の重複分はCOUNTIFSで差し引く）
          f"=COUNT(フィルター!$D${DATA_START}:$D${last_f})+COUNT(フィルター!$E${DATA_START}:$E${last_f})"
          f'-COUNTIFS(フィルター!$D${DATA_START}:$D${last_f},">=0",フィルター!$E${DATA_START}:$E${last_f},">=0")',
-         "G"),
+         "F"),
     ])
     wb.save(OUT_PATH)
     print(f"生成: {OUT_PATH}（原料豆{len(beans)} / 副原料{len(subs)} / フィルター{len(filters)}品目）")
