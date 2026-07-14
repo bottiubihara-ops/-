@@ -14,6 +14,8 @@
   - 期限日を入れると期限区分（期限切れ/来月期限/再来月期限）を数式で自動判定
     （基準はサマリ!B2の棚卸し月。月初入力のズレ問題に対応）
   - チェック状態はドロップダウン（入力者列は無し。編集履歴はSharePointの版管理で追える）
+  - 各シートはExcelテーブル化済み → スマホのExcelアプリで「カードビュー」(1行=1カードの
+    フォーム編集)が使える
   - 未入力の数量セルは黄色、期限切れ行は赤系の条件付き書式
 """
 import sys
@@ -23,6 +25,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
 MASTER_PATH = sys.argv[1] if len(sys.argv) > 1 else "inventory-app/data/inventory.xlsx"
@@ -71,6 +74,14 @@ def style_header(ws, row, cols):
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
+def add_table(ws, name, last_col_letter, last_row):
+    """ヘッダー行(3行目)〜データ末尾をExcelテーブルにする。
+    スマホのExcelアプリはテーブルに「カードビュー」を提供するため入力が大幅にラクになる。"""
+    table = Table(displayName=name, ref=f"A3:{last_col_letter}{last_row}")
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleLight9", showRowStripes=True)
+    ws.add_table(table)
+
+
 def add_check_dv(ws, col_letter, last_row):
     dv = DataValidation(type="list", formula1='"1回目完了,ダブルチェック完了"', allow_blank=True, showErrorMessage=False)
     ws.add_data_validation(dv)
@@ -111,6 +122,7 @@ def build_ingredient_sheet(wb, name, items):
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "C4"
+    add_table(ws, "TBeans" if name == "原料豆" else "TSubs", "K", last)
     add_check_dv(ws, "J", last)
     rng = f"A{DATA_START}:K{last}"
     ws.conditional_formatting.add(rng, FormulaRule(formula=[f'$F{DATA_START}="期限切れ"'], fill=RED))
@@ -146,6 +158,7 @@ def build_filter_sheet(wb, items):
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "C4"
+    add_table(ws, "TFilters", "G", last)
     add_check_dv(ws, "F", last)
     ws.conditional_formatting.add(
         f"D{DATA_START}:E{last}",
@@ -199,6 +212,8 @@ def build_summary(wb, ranges):
         "5. 未入力の数量セルは黄色で表示される。全員の入力状況はこのサマリで確認",
         "※ 行の追加・削除・並び替えはしないでください（数式とカウントが狂います）",
         "※ 複数人で同時に開いて編集してOK（自動保存・自動同期）",
+        "★ スマホの人へ: Teamsのプレビューではなく【Excelアプリ】で開き、表の中をタップ →",
+        "   右下に出るカードのアイコンで「カードビュー」にすると1品目=1枚のフォームで入力できます",
     ]
     for i, t in enumerate(tips):
         cell = ws.cell(row=r + 2 + i, column=1, value=t)
