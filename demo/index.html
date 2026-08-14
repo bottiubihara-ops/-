@@ -109,8 +109,20 @@
   .chip.on { background: var(--accent); color: var(--accent-ink); }
   .cat-chip.on { background: var(--text); color: var(--bg); }
 
-  .member-card { margin-top: 16px; padding: 12px 14px; }
-  .member-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+  .setting-card { margin-top: 16px; padding: 12px 14px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+  .status-chip {
+    border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+    background: var(--chip); color: var(--muted);
+  }
+  .status-chip.on { background: var(--accent); color: var(--accent-ink); }
+  .status-chip.hold.on { background: #b45309; color: #fff; }
+  .hold-badge {
+    display: inline-block; border-radius: 6px; padding: 1px 7px; margin-left: 6px;
+    font-size: 11px; font-weight: 700; background: #fde9c8; color: #92500a;
+  }
+  :root[data-theme="dark"] .hold-badge,
+  :root:not([data-theme="light"]) .hold-badge { background: #4a3617; color: #f0c078; }
 
   .search {
     width: 100%; margin-top: 16px;
@@ -293,10 +305,8 @@
 
   <main class="wrap">
     <section id="entry-view">
-      <div class="card member-card">
-        <span class="label">入力者（だれが数えていますか？）</span>
-        <div id="member-row" class="member-row"></div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+      <div class="card setting-card">
+        <div style="display:flex;align-items:center;gap:10px">
           <span class="label" style="white-space:nowrap">棚卸し月（期限判定の基準）</span>
           <select id="base-month" class="field" style="margin-top:0;flex:1"></select>
         </div>
@@ -397,8 +407,11 @@
     </div>
     <div class="f-row">
       <div class="f-col">
-        <span class="label">入力者 *</span>
-        <select id="f-member" class="field"></select>
+        <span class="label">記入状態</span>
+        <div id="status-row" class="chip-row" style="margin-top:6px"></div>
+        <p id="status-hint" class="import-hint hidden">
+          この品目は入力タブに残ります（数量は後から入力してください）
+        </p>
       </div>
     </div>
     <div class="f-row">
@@ -420,9 +433,8 @@
 (() => {
   "use strict";
   const MASTER = JSON.parse(document.getElementById("master-data").textContent);
-  const MEMBERS = ["入力者A", "入力者B", "入力者C"];
   const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"];
-  const LS = { auth: "demo-inv-auth", member: "demo-inv-member", records: "demo-inv-records", baseMonth: "demo-inv-basemonth", exported: "demo-inv-exported" };
+  const LS = { auth: "demo-inv-auth", records: "demo-inv-records", baseMonth: "demo-inv-basemonth", exported: "demo-inv-exported" };
   const $ = (id) => document.getElementById(id);
 
   // localStorageが使えない環境（iOSのファイルプレビュー等）ではメモリ保存にフォールバック
@@ -435,8 +447,6 @@
   // ---------- state ----------
   let records = [];
   try { records = JSON.parse(store.get(LS.records) || "[]"); } catch { records = []; }
-  let member = store.get(LS.member) || "";
-  if (!MEMBERS.includes(member)) member = "";
   let category = "すべて";
   let form = null; // { kind: 'new'|'manual'|'edit', item?, record? }
 
@@ -479,24 +489,6 @@
     toastTimer = setTimeout(() => t.classList.add("hidden"), 2500);
   };
 
-  // ---------- members ----------
-  const renderMembers = () => {
-    const row = $("member-row");
-    row.replaceChildren();
-    for (const m of MEMBERS) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip" + (member === m ? " on" : "");
-      b.textContent = m;
-      b.addEventListener("click", () => {
-        member = m;
-        store.set(LS.member, m);
-        renderMembers();
-      });
-      row.appendChild(b);
-    }
-  };
-
   // ---------- categories ----------
   const renderCats = () => {
     const cats = ["すべて", ...new Set(MASTER.map((i) => i.cat))];
@@ -517,35 +509,51 @@
   };
 
   // ---------- item list ----------
-  // 入力済みマスタ品目の判定（masterId優先。旧データ/取込CSVは原料コード、コード無し品目は品名+カテゴリで補完）
-  const enteredSets = () => {
-    const ids = new Set(), codes = new Set(), nameCat = new Set();
+  // マスタ品目 → 既存記録の索引（masterId優先。旧データ/取込CSVは原料コード、コード無しは品名+カテゴリ）
+  const recordIndex = () => {
+    const byId = new Map(), byCode = new Map(), byNameCat = new Map();
     for (const r of records) {
-      if (r.masterId) ids.add(r.masterId);
-      if (r.code) codes.add(r.code);
-      if (!r.masterId && !r.code) nameCat.add(r.name + "\u0000" + r.category);
+      if (r.masterId && !byId.has(r.masterId)) byId.set(r.masterId, r);
+      if (r.code && !byCode.has(r.code)) byCode.set(r.code, r);
+      if (!r.masterId && !r.code) {
+        const k = r.name + "\u0000" + r.category;
+        if (!byNameCat.has(k)) byNameCat.set(k, r);
+      }
     }
-    return { ids, codes, nameCat };
+    return { byId, byCode, byNameCat };
   };
-  const isEntered = (i, s) =>
-    s.ids.has(i.id) ||
-    (i.code !== "" && s.codes.has(i.code)) ||
-    (i.code === "" && s.nameCat.has(i.name + "\u0000" + i.cat));
+  const findRecord = (i, idx) =>
+    idx.byId.get(i.id) ||
+    (i.code ? idx.byCode.get(i.code) : idx.byNameCat.get(i.name + "\u0000" + i.cat)) ||
+    null;
+  // 入荷待ち・保留の記録は「入力済み」にせず、入力タブに残して後で数量を入れられるようにする
+  const isEntered = (i, idx) => {
+    const r = findRecord(i, idx);
+    return !!r && !r.entryStatus;
+  };
+  const heldRecord = (i, idx) => {
+    const r = findRecord(i, idx);
+    return r && r.entryStatus ? r : null;
+  };
 
   const renderItems = () => {
     const q = norm($("search").value);
-    const s = enteredSets();
+    const idx = recordIndex();
     const scope = MASTER.filter((i) => category === "すべて" || i.cat === category);
-    const pending = scope.filter((i) => !isEntered(i, s));
+    const pending = scope.filter((i) => !isEntered(i, idx));
+    const heldCount = pending.filter((i) => heldRecord(i, idx)).length;
     $("progress-label").textContent =
-      `入力済み ${scope.length - pending.length}件 / 対象 ${scope.length}件`;
+      `入力済み ${scope.length - pending.length}件 / 対象 ${scope.length}件` +
+      (heldCount ? `（保留 ${heldCount}件）` : "");
     // 入力済みの品目はリストに出さない（二重入力防止。修正は「一覧」タブから）
+    // 入荷待ち・保留の品目はバッジ付きでリストに残す
     const hits = pending.filter(
       (i) => q === "" || norm(i.name).includes(q) || i.code.includes(q.trim()),
     );
     const list = $("item-list");
     list.replaceChildren();
     for (const item of hits.slice(0, 50)) {
+      const held = heldRecord(item, idx);
       const li = document.createElement("li");
       const b = document.createElement("button");
       b.type = "button";
@@ -553,12 +561,19 @@
       const name = document.createElement("div");
       name.className = "item-name";
       name.textContent = item.name;
+      if (held) {
+        const badge = document.createElement("span");
+        badge.className = "hold-badge";
+        badge.textContent = "⏸ " + held.entryStatus;
+        name.appendChild(badge);
+      }
       const sub = document.createElement("div");
       sub.className = "item-sub";
       sub.textContent =
         (item.code ? item.code + "　" : "") + item.cat + "　単位: " + item.units.join("/");
       b.append(name, sub);
-      b.addEventListener("click", () => openForm({ kind: "new", item }));
+      // 保留中の品目は既存記録を引き継いで開く（重複登録を防ぐ）
+      b.addEventListener("click", () => openForm({ kind: "new", item, existing: held }));
       li.appendChild(b);
       list.appendChild(li);
     }
@@ -577,10 +592,10 @@
 
   // ---------- 未入力品目の一括0登録 ----------
   $("bulk-zero-btn").addEventListener("click", () => {
-    if (!member) { toast("入力者を選択してください"); return; }
-    const s = enteredSets();
+    const idx = recordIndex();
+    // 入荷待ち・保留にした品目は意図して残しているので対象外
     const targets = MASTER.filter(
-      (i) => (category === "すべて" || i.cat === category) && !isEntered(i, s),
+      (i) => (category === "すべて" || i.cat === category) && !findRecord(i, idx),
     );
     if (targets.length === 0) { toast("未入力の品目はありません"); return; }
     if (!window.confirm(`未入力の品目${targets.length}件を数量0で登録します。本当に実行しますか？`)) return;
@@ -601,7 +616,7 @@
         expiryDate: "",
         expiryKind: "",
         expiryQty: 0,
-        member,
+        entryStatus: "",
         note: "",
         checkStatus: "1回目完了",
       });
@@ -616,7 +631,8 @@
   const openForm = (mode) => {
     form = mode;
     const item = mode.kind === "new" ? mode.item : null;
-    const rec = mode.kind === "edit" ? mode.record : null;
+    // 保留中の品目を開き直したときは既存記録を引き継いで上書きする
+    const rec = mode.kind === "edit" ? mode.record : mode.existing || null;
 
     $("sheet-title").textContent =
       mode.kind === "edit" ? "記録を編集" : mode.kind === "manual" ? "手入力で登録" : "数量を入力";
@@ -677,18 +693,7 @@
     $("f-ekind").value = rec ? rec.expiryKind : "";
     updateExpiryQtyBox();
     $("f-note").value = rec ? rec.note : "";
-    const memSel = $("f-member");
-    memSel.replaceChildren();
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = "選択してください";
-    memSel.appendChild(none);
-    for (const m of MEMBERS) {
-      const o = document.createElement("option");
-      o.value = o.textContent = m;
-      memSel.appendChild(o);
-    }
-    memSel.value = rec ? rec.member : member;
+    setEntryStatus(rec ? rec.entryStatus || "" : "");
 
     $("f-err").classList.add("hidden");
     $("f-submit").textContent = mode.kind === "edit" ? "更新する" : "登録する";
@@ -697,6 +702,28 @@
     if (mode.kind === "new") $("f-qty").focus();
   };
   let getUnit = () => "個";
+
+  // ---------- 記入状態（通常 / 入荷待ち / 保留） ----------
+  // 入荷待ち・保留にした品目は入力タブに残り、後から数量を入れて確定できる
+  const ENTRY_STATUSES = ["", "入荷待ち", "保留"];
+  let entryStatus = "";
+  const renderEntryStatus = () => {
+    const row = $("status-row");
+    row.replaceChildren();
+    for (const st of ENTRY_STATUSES) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "status-chip" + (st ? " hold" : "") + (entryStatus === st ? " on" : "");
+      b.textContent = st || "通常";
+      b.addEventListener("click", () => setEntryStatus(st));
+      row.appendChild(b);
+    }
+    $("status-hint").classList.toggle("hidden", entryStatus === "");
+  };
+  const setEntryStatus = (st) => {
+    entryStatus = st;
+    renderEntryStatus();
+  };
 
   // 期限切れ別枠（原料豆/副原料）の表示制御と単位ラベル
   const expiredVisible = () => !$("expired-box").classList.contains("hidden");
@@ -790,13 +817,14 @@
   $("f-submit").addEventListener("click", () => {
     if (!form) return;
     const item = form.kind === "new" ? form.item : null;
-    const rec = form.kind === "edit" ? form.record : null;
+    const rec = form.kind === "edit" ? form.record : form.existing || null;
     const name = item ? item.name : $("f-name").value.trim();
-    const mem = $("f-member").value;
-    const q = parseFloat($("f-qty").value);
+    const held = entryStatus !== "";
+    // 入荷待ち・保留は数量が未定でもよい（空欄は0扱い）
+    const q = held ? parseFloat($("f-qty").value) || 0 : parseFloat($("f-qty").value);
     if (!name) return showFormError("品名を入力してください");
-    if (!mem) return showFormError("入力者を選択してください");
-    if (!Number.isFinite(q) || q < 0) return showFormError("数量には0以上の数値を入力してください");
+    if (!held && (!Number.isFinite(q) || q < 0))
+      return showFormError("数量には0以上の数値を入力してください");
     const expired = expiredVisible() ? parseFloat($("f-expqty").value) || 0 : 0;
     if (expired < 0 || expired > q)
       return showFormError("期限切れ量は0以上・数量以下で入力してください");
@@ -820,7 +848,7 @@
       expiryDate: $("f-edate").value,
       expiryKind: $("f-ekind").value,
       expiryQty,
-      member: mem,
+      entryStatus,
       note: $("f-note").value.trim(),
       checkStatus: rec ? rec.checkStatus || "1回目完了" : "1回目完了",
     };
@@ -830,14 +858,17 @@
       records.push(saved);
     }
     saveRecords();
-    member = mem;
-    store.set(LS.member, mem);
-    renderMembers();
     closeForm();
     $("search").value = "";
     renderItems();
     renderRecords();
-    toast(rec ? "更新しました" : `登録しました: ${saved.name} ${saved.quantity}${saved.unit}`);
+    toast(
+      held
+        ? `${saved.entryStatus}にしました: ${saved.name}（入力タブに残ります）`
+        : rec
+          ? `登録しました: ${saved.name} ${saved.quantity}${saved.unit}`
+          : `登録しました: ${saved.name} ${saved.quantity}${saved.unit}`,
+    );
   });
 
   $("f-delete").addEventListener("click", () => {
@@ -913,7 +944,8 @@
         const sub = document.createElement("div");
         sub.className = "rec-sub";
         sub.textContent =
-          `${r.recordedAt}　${r.member}` +
+          `${r.recordedAt}` +
+          (r.entryStatus ? `　⏸${r.entryStatus}` : "") +
           (r.expiredQty ? `　⚠内 期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}` : "") +
           (r.expiryKind ? `　⏳${r.expiryKind}${r.expiryQty ? ` ${r.expiryQty}${r.unit}` : ""}` : "") +
           (r.expiryDate ? `(${r.expiryDate})` : "");
@@ -928,14 +960,14 @@
 
   // ---------- csv ----------
   $("csv-btn").addEventListener("click", () => {
-    const headers = ["記録ID","記録日時","棚卸し月","品目ID","原料コード","品名","カテゴリ","数量","単位","期限切れ量","期限切れ日","期限日","期限区分","期限量","入力者","チェック状態","備考"];
+    const headers = ["記録ID","記録日時","棚卸し月","品目ID","原料コード","品名","カテゴリ","数量","単位","期限切れ量","期限切れ日","期限日","期限区分","期限量","記入状態","チェック状態","備考"];
     const esc = (v) => {
       const s = String(v);
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(",")];
     for (const r of [...records].sort(codeOrder)) {
-      lines.push([r.id, r.recordedAt, r.month, r.masterId || "", r.code, r.name, r.category, r.quantity, r.unit, r.expiredQty || "", r.expiredDate || "", r.expiryDate, r.expiryKind, r.expiryQty || "", r.member, r.checkStatus || "", r.note].map(esc).join(","));
+      lines.push([r.id, r.recordedAt, r.month, r.masterId || "", r.code, r.name, r.category, r.quantity, r.unit, r.expiredQty || "", r.expiredDate || "", r.expiryDate, r.expiryKind, r.expiryQty || "", r.entryStatus || "", r.checkStatus || "", r.note].map(esc).join(","));
     }
     const blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -1033,7 +1065,7 @@
           expiryDate: get(r, "期限日") ? normDate(get(r, "期限日")) : "",
           expiryKind: get(r, "期限区分"),
           expiryQty: numOf(get(r, "期限量")),
-          member: get(r, "入力者"),
+          entryStatus: get(r, "記入状態"),
           note: get(r, "備考"),
           checkStatus: get(r, "チェック状態") || "1回目完了",
         };
@@ -1051,7 +1083,6 @@
 
   // ---------- init ----------
   initBaseMonth();
-  renderMembers();
   renderCats();
   renderItems();
   renderRecords();
