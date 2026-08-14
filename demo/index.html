@@ -83,6 +83,10 @@
     padding: 10px 16px 0;
   }
   .head-inner h1 { font-size: 17px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .version {
+    font-size: 10px; font-weight: 700; color: var(--faint);
+    margin: 0 0 10px 2px; letter-spacing: 0.02em; white-space: nowrap;
+  }
   .demo-badge {
     font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
     color: var(--accent); background: var(--accent-soft);
@@ -295,6 +299,7 @@
   <header>
     <div class="head-inner">
       <h1>📦 棚卸し</h1>
+      <span id="app-version" class="version"></span>
       <nav class="tabs">
         <button id="tab-entry" class="tab active" type="button">入力</button>
         <button id="tab-records" class="tab" type="button">一覧</button>
@@ -432,6 +437,8 @@
 <script>
 (() => {
   "use strict";
+  // ▼ アプリを更新したらこの日付を書き換える（画面右上に表示され、版の確認に使う）
+  const APP_VERSION = "2026-08-14版";
   const MASTER = JSON.parse(document.getElementById("master-data").textContent);
   const CATEGORIES = ["原料豆", "副原料", "フィルター", "その他"];
   const LS = { auth: "demo-inv-auth", records: "demo-inv-records", baseMonth: "demo-inv-basemonth", exported: "demo-inv-exported" };
@@ -1082,6 +1089,7 @@
   });
 
   // ---------- init ----------
+  $("app-version").textContent = APP_VERSION;
   initBaseMonth();
   renderCats();
   renderItems();
