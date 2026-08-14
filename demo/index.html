@@ -366,7 +366,7 @@
       </div>
     </div>
     <div id="expired-box" class="partial-box hidden">
-      <span class="label">⚠ 期限切れ分（任意・上の数量には含めない）</span>
+      <span class="label">⚠ 期限切れ分（任意・上の数量に含まれる分）</span>
       <div class="qty-row" style="margin-top:5px">
         <input id="f-expqty" class="partial-input" inputmode="decimal" placeholder="0" style="width:100px">
         <span id="expired-unit" class="unit-fixed" style="width:auto"></span>
@@ -641,7 +641,7 @@
       catSel.value = cat;
     }
 
-    // 数量は半端込みの合計をそのまま入力・表示（期限切れ分は含めない）
+    // 数量は期限切れ分も含んだ在庫合計をそのまま入力・表示する
     $("f-qty").value = rec ? String(rec.quantity) : "";
     $("f-expiryqty").value = rec && rec.expiryQty ? String(rec.expiryQty) : "";
     $("f-expqty").value = rec && rec.expiredQty ? String(rec.expiredQty) : "";
@@ -798,7 +798,8 @@
     if (!mem) return showFormError("入力者を選択してください");
     if (!Number.isFinite(q) || q < 0) return showFormError("数量には0以上の数値を入力してください");
     const expired = expiredVisible() ? parseFloat($("f-expqty").value) || 0 : 0;
-    if (expired < 0) return showFormError("期限切れ量には0以上の数値を入力してください");
+    if (expired < 0 || expired > q)
+      return showFormError("期限切れ量は0以上・数量以下で入力してください");
     const expiryQty = expiryQtyVisible() ? parseFloat($("f-expiryqty").value) || 0 : 0;
     if (expiryQty < 0 || expiryQty > q)
       return showFormError("期限で切れる量は0以上・数量以下で入力してください");
@@ -913,7 +914,7 @@
         sub.className = "rec-sub";
         sub.textContent =
           `${r.recordedAt}　${r.member}` +
-          (r.expiredQty ? `　⚠期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}` : "") +
+          (r.expiredQty ? `　⚠内 期限切れ${r.expiredQty}${r.unit}${r.expiredDate ? `(${r.expiredDate})` : ""}` : "") +
           (r.expiryKind ? `　⏳${r.expiryKind}${r.expiryQty ? ` ${r.expiryQty}${r.unit}` : ""}` : "") +
           (r.expiryDate ? `(${r.expiryDate})` : "");
         b.append(top, sub);
