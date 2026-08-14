@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+body {
+  background: #f2f4f7;
+  color: #1f2430;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI",
+    "Noto Sans JP", Meiryo, system-ui, sans-serif;
+}
+
+/* iOSでinputにフォーカスした際の自動ズームを防ぐ */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
